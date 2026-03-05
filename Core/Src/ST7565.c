@@ -1,0 +1,638 @@
+/*
+$Id:$
+
+ST7565/ST7565P LCD library!
+
+Copyright (C) 2023 Arsalan Ali Mujtaba
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this library.
+
+// some of this code was written by <arsalan.mselep@uetpeshawar.edu.pk> originally; it is in the public domain.
+*/
+
+#include <stdlib.h>
+#include <stdint.h>
+#include "ST7565.h"
+#include <string.h>
+
+#define COL_OFFSET 4
+
+extern const uint8_t font[];
+uint8_t displayBuffer[1024];
+
+// the memory buffer for the LCD
+uint8_t st7565_buffer[1024] = { 
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+
+#define enablePartialUpdate
+
+#ifdef enablePartialUpdate
+static uint8_t xUpdateMin, xUpdateMax, yUpdateMin, yUpdateMax;
+#endif
+
+
+
+static void ST7565_updateBoundingBox(uint8_t xmin, uint8_t ymin, uint8_t xmax, uint8_t ymax)
+{
+#ifdef enablePartialUpdate
+  if (xmin < xUpdateMin) xUpdateMin = xmin;
+  if (xmax > xUpdateMax) xUpdateMax = xmax;
+  if (ymin < yUpdateMin) yUpdateMin = ymin;
+  if (ymax > yUpdateMax) yUpdateMax = ymax;
+#endif
+}
+
+void ST7565_drawbitmap(uint8_t x, uint8_t y, const uint8_t *bitmap, uint8_t w, uint8_t h, uint8_t color)
+{
+	  unsigned Column_Address=0;
+	  unsigned Row_Address=0;
+	  unsigned int k,i;
+
+	  ST7565_command(CMD_SET_ADC_NORMAL);
+	ST7565_command(CMD_SET_COM_REVERSE);
+	  for(k=0; k<8; k++)
+	  {
+		  ST7565_command(0x40);                                       // Line   Address
+		  ST7565_command(0xB0+k+Row_Address);                         // Page   Address
+		  ST7565_command(0x10);                                       // Column Address-4-H-bits
+		  ST7565_command(0x00);                                       // Column Address-4-L-bits
+
+		  ST7565_command(0x10 + ((Column_Address&0xF0)>>4));          // Column Address-4-H-bits
+		  ST7565_command(0x00 +  (Column_Address&0x0F));              // Column Address-4-L-bits
+
+	      for(i=0;i<128; i++)
+	      {
+	    	  ST7565_data(*bitmap);
+	    	  bitmap++;
+	      }
+	  }
+  ST7565_updateBoundingBox(x, y, x+w, y+h);
+}
+
+void ST7565_drawstring(uint8_t x, uint8_t line, char *c)
+{
+  while (c[0] != 0) {
+	ST7565_drawchar(x, line, c[0]);
+    c++;
+    x += 6; // 6 pixels wide
+    if (x + 6 >= LCD_WIDTH) {
+      x = 0;    // ran out of this line
+      line++;
+    }
+    if (line >= (LCD_HEIGHT/8))
+      return;        // ran out of space :(
+  }
+}
+
+
+
+void  ST7565_drawchar(uint8_t x, uint8_t line, char c)
+{
+  uint8_t i;
+  for (i =0; i<5; i++ ) {
+	  displayBuffer[x + (line*128) ] = font[((unsigned char)c * 5) + i];
+    x++;
+  }
+
+ ST7565_updateBoundingBox(x-5, line*8, x-1, line*8 + 8);
+}
+
+static void draw_colon_7x12(uint8_t x, uint8_t y, uint8_t color)
+{
+    // 7x12 grid: width 7, height 12
+    // Make two dots, each 2 rows tall and 2 columns wide.
+    uint8_t cx0 = x + 3;   // centered-ish
+    uint8_t cx1 = x + 4;
+
+    // top dot rows
+    uint8_t r0 = y + 3;
+    uint8_t r1 = y + 4;
+
+    // bottom dot rows
+    uint8_t r2 = y + 7;
+    uint8_t r3 = y + 8;
+
+    for (uint8_t cx = cx0; cx <= cx1; cx++) {
+        ST7565_setpixel(cx, r0, color);
+        ST7565_setpixel(cx, r1, color);
+        ST7565_setpixel(cx, r2, color);
+        ST7565_setpixel(cx, r3, color);
+    }
+}
+
+static void draw_colon_8x13(uint8_t x, uint8_t y, uint8_t color)
+{
+    // Two dots, each 2 rows tall, 2 columns wide, centered-ish
+    // 8x13 grid: width 8, height 13
+    uint8_t cx0 = x + 3;
+    uint8_t cx1 = x + 4;
+
+    // top dot rows
+    uint8_t r0 = y + 3;
+    uint8_t r1 = y + 4;
+
+    // bottom dot rows
+    uint8_t r2 = y + 8;
+    uint8_t r3 = y + 9;
+
+    for (uint8_t cx = cx0; cx <= cx1; cx++) {
+        ST7565_setpixel(cx, r0, color);
+        ST7565_setpixel(cx, r1, color);
+        ST7565_setpixel(cx, r2, color);
+        ST7565_setpixel(cx, r3, color);
+    }
+}
+
+static void ST7565_drawchar_anywhere_scaled(uint8_t x, uint8_t y, char c, uint8_t dstW, uint8_t dstH)
+{
+    const uint8_t srcW = 5, srcH = 8;
+
+    for (uint8_t dx = 0; dx < dstW; dx++) {
+        uint8_t sx = (uint16_t)dx * srcW / dstW;   // 0..4
+        uint8_t col = font[(uint8_t)c * 5 + sx];
+
+        for (uint8_t dy = 0; dy < dstH; dy++) {
+            uint8_t sy = (uint16_t)dy * srcH / dstH; // 0..7
+            uint8_t on = (col >> sy) & 1u;
+            ST7565_setpixel(x + dx, y + dy, on ? BLACK : WHITE);
+        }
+    }
+}
+
+void ST7565_drawstring_anywhere(uint8_t x, uint8_t y, const char* str)
+{
+  uint8_t i = 0;
+  while (str[i] != '\0') {
+	  ST7565_drawchar_anywhere(x, y, str[i]);
+    x += 6; // Adjust the x-coordinate to leave space between characters
+    i++;
+  }
+}
+
+void ST7565_drawchar_anywhere(uint8_t x, uint8_t y, char c)
+{
+    // Special-case degree symbol: treat \xB0 as a custom glyph
+    if ((uint8_t)c == 0xB0) {
+
+        // A readable small ring (5 columns, 8 rows)
+        // Bits are vertical: bit0 = top row of the 8-pixel cell in your current renderer
+        static const uint8_t deg_cols[5] = { 0x00, 0x0E, 0x1B, 0x1B, 0x0E };
+
+        // Shiftable parameters
+
+        // Horizontal
+        if (x < (LCD_WIDTH - 5)) x = (uint8_t)(x - 1);
+        // Vertical
+        if (y >= 2) y = (uint8_t)(y + 2);
+
+        // Draw 5x8 degree glyph, and explicitly clear background in that box
+        for (uint8_t i = 0; i < 5; i++) {
+            uint8_t column = deg_cols[i];
+            for (uint8_t j = 0; j < 8; j++) {
+                uint8_t yy = (uint8_t)(y + j);
+                if (yy < LCD_HEIGHT) {
+                    ST7565_setpixel((uint8_t)(x + i), yy,
+                                    (column & (1u << j)) ? BLACK : WHITE);
+                }
+            }
+        }
+        return;
+    }
+
+    // Default: use font table
+    for (uint8_t i = 0; i < 5; i++) {
+        uint8_t column = font[(unsigned char)c * 5 + i];
+        for (uint8_t j = 0; j < 8; j++) {
+            uint8_t yy = (uint8_t)(y + j);
+            if (yy < LCD_HEIGHT) {
+                ST7565_setpixel((uint8_t)(x + i), yy,
+                                (column & (1u << j)) ? BLACK : WHITE);
+            }
+        }
+    }
+}
+
+void ST7565_drawchar_anywhere_6x10(uint8_t x, uint8_t y, char c)
+{
+    const uint8_t srcW = 5, srcH = 8;
+    const uint8_t dstW = 6, dstH = 10;
+
+    for (uint8_t dx = 0; dx < dstW; dx++) {
+        // map destination x -> source x (0..4)
+        uint8_t sx = (uint16_t)dx * srcW / dstW;
+        uint8_t col = font[(uint8_t)c * 5 + sx];
+
+        for (uint8_t dy = 0; dy < dstH; dy++) {
+            // map destination y -> source y (0..7)
+            uint8_t sy = (uint16_t)dy * srcH / dstH;
+
+            uint8_t on = (col >> sy) & 1u;
+            ST7565_setpixel(x + dx, y + dy, on ? BLACK : WHITE);
+        }
+    }
+}
+
+void ST7565_drawstring_anywhere_6x10(uint8_t x, uint8_t y, const char *s)
+{
+    while (*s) {
+        ST7565_drawchar_anywhere_6x10(x, y, *s++);
+        x += 7;  // 6px glyph + 1px spacing
+    }
+}
+
+void ST7565_drawchar_anywhere_7x12(uint8_t x, uint8_t y, char c)
+{
+    if (c == ':') {
+        // Clear the glyph box so old pixels don't remain
+        ST7565_fillrect(x, y, FONT7X12_W, FONT7X12_H, WHITE);
+        draw_colon_7x12(x, y, BLACK);
+        return;
+    }
+
+    ST7565_drawchar_anywhere_scaled(x, y, c, FONT7X12_W, FONT7X12_H);
+}
+
+void ST7565_drawstring_anywhere_7x12(uint8_t x, uint8_t y, const char *s)
+{
+    while (*s) {
+        uint8_t c = (uint8_t)(*s++);
+
+        if (c == DEGREE_CHAR) {
+            /*
+             * Draw degree symbol using ORIGINAL 5x8 font (unscaled).
+             * Inverted Y axis:
+             *   larger y = visually higher on screen
+             *
+             * These offsets place the degree nicely as a superscript
+             * inside a 7x12 character cell.
+             */
+            uint8_t deg_x = (uint8_t)(x + 2);  // center horizontally in cell
+            uint8_t deg_y = (uint8_t)(y + 5);  // raise vertically (tuned)
+
+            ST7565_drawchar_anywhere(deg_x, deg_y, (char)DEGREE_CHAR);
+
+            // Advance by scaled step so alignment stays consistent
+            x = (uint8_t)(x + FONT7X12_STEP);
+        }
+        else {
+            ST7565_drawchar_anywhere_7x12(x, y, (char)c);
+            x = (uint8_t)(x + FONT7X12_STEP);
+        }
+    }
+}
+
+
+void ST7565_drawchar_anywhere_8x13(uint8_t x, uint8_t y, char c)
+{
+    if (c == ':') {
+        // Clear its box first so old pixels don't linger
+        ST7565_fillrect(x, y, FONT8X13_W, FONT8X13_H, WHITE);
+        draw_colon_8x13(x, y, BLACK);
+        return;
+    }
+
+    ST7565_drawchar_anywhere_scaled(x, y, c, FONT8X13_W, FONT8X13_H);
+}
+
+void ST7565_drawstring_anywhere_8x13(uint8_t x, uint8_t y, const char *s)
+{
+    while (*s) {
+        ST7565_drawchar_anywhere_8x13(x, y, *s++);
+        x += FONT8X13_STEP;
+    }
+}
+
+// bresenham's algorithm - thx wikpedia
+void ST7565_drawline(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t color, uint8_t width)
+{
+  uint8_t steep = abs(y1 - y0) > abs(x1 - x0);
+  if (steep) {
+	swap(x0, y0);
+	swap(x1, y1);
+  }
+  if (x0 > x1) {
+	swap(x0, x1);
+	swap(y0, y1);
+  }
+  uint8_t dx = x1 - x0;
+  uint8_t dy = abs(y1 - y0);
+  int8_t err = dx / 2;
+  int8_t ystep;
+  if (y0 < y1) {
+	ystep = 1;
+  } else {
+	ystep = -1;
+  }
+  for (; x0 <= x1; x0++) {
+	for (int8_t i = -(width / 2); i <= width / 2; i++) {
+	  if (steep) {
+		ST7565_setpixel(y0 + i, x0, color);
+	  } else {
+		if (y0 + i >= 0 && y0 + i < LCD_HEIGHT) {
+		  ST7565_setpixel(x0, y0 + i, color);
+		}
+	  }
+	}
+	err -= dy;
+	if (err < 0) {
+	  y0 += ystep;
+	  err += dx;
+	}
+  }
+}
+// filled rectangle
+void ST7565_fillrect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color)
+{
+  uint8_t i, j;
+
+  // stupidest version - just pixels - but fast with internal buffer!
+  for (i=x; i<x+w; i++) {
+    for (j=y; j<y+h; j++) {
+    	ST7565_setpixel(i, j, color);
+    }
+  }
+
+  ST7565_updateBoundingBox(x, y, x+w, y+h);
+}
+
+// draw a rectangle
+void ST7565_drawrect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color)
+{
+  uint8_t i;
+  // stupidest version - just pixels - but fast with internal buffer!
+  for (i=x; i<x+w; i++) {
+	ST7565_setpixel(i, y, color);
+	ST7565_setpixel(i, y+h-1, color);
+  }
+  for (i=y; i<y+h; i++) {
+	ST7565_setpixel(x, i, color);
+	ST7565_setpixel(x+w-1, i, color);
+  } 
+
+  ST7565_updateBoundingBox(x, y, x+w, y+h);
+}
+
+// draw a circle outline
+void ST7565_drawcircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color)
+{
+	ST7565_updateBoundingBox(x0-r, y0-r, x0+r, y0+r);
+
+  int8_t f = 1 - r;
+  int8_t ddF_x = 1;
+  int8_t ddF_y = -2 * r;
+  int8_t x = 0;
+  int8_t y = r;
+
+  ST7565_setpixel(x0, y0+r, color);
+  ST7565_setpixel(x0, y0-r, color);
+  ST7565_setpixel(x0+r, y0, color);
+  ST7565_setpixel(x0-r, y0, color);
+
+  while (x<y) {
+    if (f >= 0) {
+      y--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;
+  
+    ST7565_setpixel(x0 + x, y0 + y, color);
+    ST7565_setpixel(x0 - x, y0 + y, color);
+    ST7565_setpixel(x0 + x, y0 - y, color);
+    ST7565_setpixel(x0 - x, y0 - y, color);
+    
+    ST7565_setpixel(x0 + y, y0 + x, color);
+    ST7565_setpixel(x0 - y, y0 + x, color);
+    ST7565_setpixel(x0 + y, y0 - x, color);
+    ST7565_setpixel(x0 - y, y0 - x, color);
+    
+  }
+}
+
+void ST7565_fillcircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color)
+{
+  ST7565_updateBoundingBox(x0-r, y0-r, x0+r, y0+r);
+
+  int8_t f = 1 - r;
+  int8_t ddF_x = 1;
+  int8_t ddF_y = -2 * r;
+  int8_t x = 0;
+  int8_t y = r;
+  uint8_t i;
+
+  for (i=y0-r; i<=y0+r; i++) {
+	ST7565_setpixel(x0, i, color);
+  }
+
+  while (x<y) {
+    if (f >= 0) {
+      y--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;
+  
+    for (i=y0-y; i<=y0+y; i++) {
+    	ST7565_setpixel(x0+x, i, color);
+    	ST7565_setpixel(x0-x, i, color);
+    } 
+    for (i=y0-x; i<=y0+x; i++) {
+    	ST7565_setpixel(x0+y, i, color);
+    	ST7565_setpixel(x0-y, i, color);
+    }    
+  }
+}
+
+
+// Update the physical display with the contents of the display buffer
+void updateDisplay(void)
+{
+    for (uint8_t page = 0; page < LCD_HEIGHT / 8; page++) {
+        ST7565_command(CMD_SET_PAGE | page);
+        ST7565_command(CMD_SET_COLUMN_LOWER | (COL_OFFSET & 0x0F));
+        ST7565_command(CMD_SET_COLUMN_UPPER | ((COL_OFFSET >> 4) & 0x0F));
+
+        for (uint8_t column = 0; column < LCD_WIDTH; column++) {
+            ST7565_data(displayBuffer[page * LCD_WIDTH + column]);
+        }
+    }
+}
+
+void ST7565_setpixel(uint8_t x, uint8_t y, uint8_t color)
+{  // Calculate the index into the display buffer
+  uint16_t index = (y / 8) * LCD_WIDTH + x;
+
+  // Set the pixel color in the buffer
+  if (color == 1) {
+	displayBuffer[index] |= (1 << (y % 8));
+  } else {
+	displayBuffer[index] &= ~(1 << (y % 8));
+  }
+}
+
+
+
+void ST7565_init(void)
+{
+    pin_config();                       // configure I/O pins
+    HAL_GPIO_WritePin(cog_port, cog_CS,  GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(cog_port, cog_RS,  GPIO_PIN_RESET);
+
+    HAL_GPIO_WritePin(cog_port, cog_RST, GPIO_PIN_SET);
+    HAL_Delay(50);
+    HAL_GPIO_WritePin(cog_port, cog_RST, GPIO_PIN_RESET);
+    HAL_Delay(50);
+    HAL_GPIO_WritePin(cog_port, cog_RST, GPIO_PIN_SET);
+
+    // LCD bias select
+    ST7565_command(CMD_SET_BIAS_7);
+
+    // Orientation: choose one and keep it *everywhere*
+    ST7565_command(CMD_SET_ADC_REVERSE);   // X direction
+    ST7565_command(CMD_SET_COM_NORMAL);   // Y direction
+
+    // Initial display line
+    ST7565_command(CMD_SET_DISP_START_LINE);
+
+    // Power up sequence
+    ST7565_command(CMD_SET_POWER_CONTROL | 0x4);
+    HAL_Delay(50);
+    ST7565_command(CMD_SET_POWER_CONTROL | 0x6);
+    HAL_Delay(50);
+    ST7565_command(CMD_SET_POWER_CONTROL | 0x7);
+    HAL_Delay(10);
+
+    // Contrast / resistor ratio
+    ST7565_command(CMD_SET_RESISTOR_RATIO | 0x4);
+
+    // Turn display on, normal mode
+    ST7565_command(CMD_DISPLAY_ON);
+    ST7565_command(CMD_SET_ALLPTS_NORMAL);
+
+    ST7565_set_brightness(0x10); // not max; you can tweak
+
+    // Clear framebuffer
+    memset(displayBuffer, 0, sizeof(displayBuffer));
+
+    // Optionally: immediately push a blank screen
+    // so DDRAM matches framebuffer
+    for (uint8_t page = 0; page < LCD_HEIGHT/8; page++) {
+        ST7565_command(CMD_SET_PAGE | page);
+        ST7565_command(CMD_SET_COLUMN_LOWER | 0x0);
+        ST7565_command(CMD_SET_COLUMN_UPPER | 0x0);
+        for (uint8_t col = 0; col < LCD_WIDTH; col++) {
+            ST7565_data(0x00);
+        }
+    }
+}
+
+uint8_t ST7565_command(uint8_t c) {
+	uint8_t ret;
+    HAL_GPIO_WritePin(cog_port, cog_RS, GPIO_PIN_RESET);               // Following contents are Commands
+    HAL_GPIO_WritePin(cog_port, cog_CS, GPIO_PIN_RESET);           // COG Chip selected
+
+	HAL_SPI_TransmitReceive(&SPI_PORT, &c, &ret, 1, 100);
+
+    HAL_GPIO_WritePin(cog_port, cog_CS, GPIO_PIN_SET);           // chip de-selected until further transaction
+    HAL_GPIO_WritePin(cog_port, cog_RS, GPIO_PIN_SET);
+    return ret;
+}
+
+uint8_t ST7565_data(uint8_t c) {
+	uint8_t ret;
+    HAL_GPIO_WritePin(cog_port, cog_RS, GPIO_PIN_SET);               // Following contents are Commands
+    HAL_GPIO_WritePin(cog_port, cog_CS, GPIO_PIN_RESET);           // COG Chip selected
+
+	HAL_SPI_TransmitReceive(&SPI_PORT, &c, &ret, 1, 100);
+
+    HAL_GPIO_WritePin(cog_port, cog_CS, GPIO_PIN_SET);           // chip de-selected until further transaction
+    HAL_GPIO_WritePin(cog_port, cog_RS, GPIO_PIN_RESET);
+    return ret;
+}
+void ST7565_set_brightness(uint8_t val) {
+	ST7565_command(CMD_SET_VOLUME_FIRST);
+    ST7565_command(CMD_SET_VOLUME_SECOND | (val & 0x3f));
+}
+
+// clear everything
+void ST7565_clear(void) {
+    int page_index=0;
+    int column_index=0;
+
+    for(page_index=0; page_index<8; page_index++)
+    {
+    	ST7565_command(0x40);                   // Line   Address
+    	ST7565_command(0xB0 + page_index);      // Page   Address
+    	ST7565_command(0x10);                   // Column Address-4-H-bits
+    	ST7565_command(0x00);                   // Column Address-4-L-bits
+
+        for(column_index=0; column_index<132; column_index++)
+        {
+        	ST7565_data(0x00);
+        	ST7565_data(0x00);
+        }
+    }
+}
+
+
+void pin_config(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    // Enable clock for the port you selected (cog_port)
+    // NOTE: cannot infer port from macro, so user must enable clock manually
+    // or you can add a switch here (optional)
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    // Set all control pins LOW initially
+    HAL_GPIO_WritePin(cog_port, cog_CS,  GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(cog_port, cog_RS,  GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(cog_port, cog_RST, GPIO_PIN_RESET);
+
+    // Configure CS pin
+    GPIO_InitStruct.Pin = cog_CS;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(cog_port, &GPIO_InitStruct);
+
+    // Configure RS (A0 / D-C) pin
+    GPIO_InitStruct.Pin = cog_RS;
+    HAL_GPIO_Init(cog_port, &GPIO_InitStruct);
+
+    // Configure RST pin
+    GPIO_InitStruct.Pin = cog_RST;
+    HAL_GPIO_Init(cog_port, &GPIO_InitStruct);
+}
+
+uint8_t ST7565_on() {
+	return ST7565_command(CMD_DISPLAY_ON);
+}
+
+uint8_t ST7565_off() {
+	return ST7565_command(CMD_DISPLAY_OFF);
+}

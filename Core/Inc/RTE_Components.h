@@ -22,7 +22,7 @@
 #define  __RTE_COMPONENTS_H__
 
 /* Defines ------------------------------------------------------------------*/
-/* STMicroelectronics.X-CUBE-MEMS1.11.1.0 */
+/* STMicroelectronics.X-CUBE-MEMS1.12.0.0 */
 #define STTS22H_TEMP_I2C
 #define LPS22HH_PRESSTEMP_SPI
 

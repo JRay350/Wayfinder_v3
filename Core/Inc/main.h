@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2026 STMicroelectronics.
+  * Copyright (c) 2025 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -31,7 +31,17 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <math.h>
+#include "stm32l0xx.h"
+#include <stdio.h>
+#include <stdbool.h>
+#include <lps22hh.h>
+#include <stts22h.h>
 
+#include "c6dofimu13_hal.h"
+#include "lps22hh_platform.h"
+#include "stts22h_platform.h"
+#include "ST7565.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -46,7 +56,20 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+#define BTN_DEBOUNCE_MS 45u
+#define VREFINT_CAL ((uint16_t*) (0x1FF80078UL))
 
+#define SPARK_W   121   // number of points (also pixels wide)
+#define SPARK_H   40   // pixels tall
+
+#define CHAR_W 6
+#define CHAR_H 8
+
+#define YEAR_MIN 2000u
+#define YEAR_MAX 2099u
+
+#define COMPASS_PERIOD_MS 50
+#define INCLINE_PERIOD_MS 50
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
