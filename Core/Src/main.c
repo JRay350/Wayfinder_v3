@@ -62,11 +62,17 @@ typedef enum {
 	PRESSURE_FIELD,
 } CalibrationEditField_t;
 
+typedef struct {
+    int16_t mx;
+    int16_t my;
+    int16_t mz;
+} MagLogSample_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define MAG_LOG_SAMPLES     500
+#define MAG_LOG_PERIOD_MS   40U     // 25 Hz logging
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -84,6 +90,13 @@ SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 
 /* USER CODE BEGIN PV */
+volatile MagLogSample_t mag_log[MAG_LOG_SAMPLES];
+volatile uint32_t mag_log_count = 0;
+volatile uint8_t mag_log_done = 0;
+volatile uint8_t mag_log_armed = 1;      // auto-start logging
+volatile uint32_t mag_log_overruns = 0;
+static uint32_t mag_log_last_ms = 0;
+
 static volatile uint32_t last_pa0_ms = 0;
 static volatile uint32_t last_pb9_ms = 0;
 static volatile uint32_t last_pb8_ms = 0;
@@ -156,6 +169,8 @@ static void MX_RTC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
+static void MagLog_Reset(void);
+static void MagLog_TryStore(float mx, float my, float mz);
 static bool is_leap_year(uint16_t year);
 static uint8_t days_in_month(uint8_t month, uint16_t year);
 static void clamp_day_to_month(DateTime_t *t);
@@ -183,6 +198,40 @@ float Celsius_To_Fahrenheit(float celsius_temperature);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void MagLog_Reset(void)
+{
+    mag_log_count = 0;
+    mag_log_done = 0;
+    mag_log_armed = 1;
+    mag_log_overruns = 0;
+    mag_log_last_ms = 0;
+}
+
+static void MagLog_TryStore(float mx, float my, float mz)
+{
+    uint32_t now = HAL_GetTick();
+
+    if (!mag_log_armed || mag_log_done) {
+        return;
+    }
+
+    if ((now - mag_log_last_ms) < MAG_LOG_PERIOD_MS) {
+        return;
+    }
+    mag_log_last_ms = now;
+
+    if (mag_log_count < MAG_LOG_SAMPLES) {
+    	mag_log[mag_log_count].mx = (int16_t)mx;
+    	mag_log[mag_log_count].my = (int16_t)my;
+    	mag_log[mag_log_count].mz = (int16_t)mz;
+        mag_log_count++;
+    } else {
+        mag_log_done = 1;
+        mag_log_armed = 0;
+        mag_log_overruns++;
+    }
+}
+
 static bool is_leap_year(uint16_t year)
 {
     return ((year % 4u) == 0u && (year % 100u) != 0u) || ((year % 400u) == 0u);
@@ -1035,7 +1084,7 @@ int main(void)
 
   // MC6470 Init
   IMU_Init();
-
+  MagLog_Reset();
 
   // LPS22HH Init
   const float_t lps22h_odr = 1.0f;
@@ -1066,8 +1115,6 @@ int main(void)
   ST7565_clear();
   updateDisplay();
   isDisplayOn = false;
-
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -1261,43 +1308,45 @@ int main(void)
           }
 
           case COMPASS: {
-              float ax, ay, az;
-              float mx, my, mz;
+                       float ax, ay, az;
+                       float mx, my, mz;
 
-              memset(displayBuffer, 0, sizeof(displayBuffer));
+                       memset(displayBuffer, 0, sizeof(displayBuffer));
 
-              if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK &&
-                  C6DOFIMU13_Mag_GetXYZ(&h6dof, &mx, &my, &mz) == HAL_OK)
-              {
+                       if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK &&
+                           C6DOFIMU13_Mag_GetXYZ(&h6dof, &mx, &my, &mz) == HAL_OK)
+                       {
+                           // Store RAW magnetometer data for later SWD extraction
+                           MagLog_TryStore(mx, my, mz);
 
-                  // Center the horizontal field vector
-                  float mx_c = (mx - mx_off);
-                  float my_c = (my - my_off);
+                           // Existing heading calculation
+                           float mx_c = (mx - mx_off);
+                           float my_c = (my - my_off);
 
-                  // Heading (using your chosen convention atan2(my, -mx))
-                  float heading_rad = atan2f(my_c, mx_c);
-                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset;
+                           float heading_rad = atan2f(my_c, mx_c);
+                           float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset;
 
-                  if (heading_deg < 0.0f) heading_deg += 360.0f;
-                  if (heading_deg >= 360.0f) heading_deg -= 360.0f;
+                           if (heading_deg < 0.0f) {
+                               heading_deg += 360.0f;
+                           } else if (heading_deg >= 360.0f) {
+                               heading_deg -= 360.0f;
+                           }
 
+                           Draw_Compass(heading_deg);
+                       }
+                       else
+                       {
+                           const char *IMU_error = "IMU Failure";
+                           ST7565_drawstring_anywhere(
+                               (LCD_WIDTH / 2) - ((strlen(IMU_error) / 2) * 6),
+                               27,
+                               (char*)IMU_error
+                           );
+                       }
 
-                  // Draw compass into displayBuffer only
-                  Draw_Compass(heading_deg);
-              }
-              else
-              {
-                  const char *IMU_error = "IMU Failure";
-                  ST7565_drawstring_anywhere(
-                      (LCD_WIDTH / 2) - ((strlen(IMU_error) / 2) * 6),
-                      27,
-                      (char*)IMU_error
-                  );
-              }
-
-              updateDisplay();
-              break;
-          }
+                       updateDisplay();
+                       break;
+                   }
 
           case INCLINE: {
         	  float ax, ay, az;
