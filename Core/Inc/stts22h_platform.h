@@ -14,7 +14,7 @@
 #define STTS22H_I2C_HANDLE     hi2c2
 
 // STTS22H_I2C_ADD_L for production
-#define STTS22H_I2C_ADDR 	   (0x3CU << 1)
+#define STTS22H_I2C_ADDR 	   STTS22H_I2C_ADD_L
 
 int32_t STTS22H_BusIO_Register_I2C(STTS22H_Object_t *pObj);
 

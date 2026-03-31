@@ -110,8 +110,8 @@ volatile bool blink = false;
 
 volatile CalibrationEditField_t calibration_field = TEMPERATURE_FIELD;
 
-float_t mx_off = 16.75f;
-float_t my_off = 9.85f;
+float_t mx_off = -9.1f;
+float_t my_off = -118.35f;
 float_t mz_off = -168.55f;
 float_t sx = 73.05;
 float_t sy = 70.6;
@@ -1168,6 +1168,7 @@ int main(void)
 
           case PRESSURE: {
         	  char pressure_display_string[37];
+        	  char altitude_display_string[37];
         	  float_t pressure;
 
         	  if (LPS22HH_PRESS_GetPressure(&lps22hh, &pressure) == LPS22HH_OK) {
@@ -1180,23 +1181,36 @@ int main(void)
 
         		  Spark_Push(press_hist, &press_head, &press_count, v);
         	      char pressure_string[20];
-        	      ftoa(pressure_string, pressure + pressure_offset, 2); // e.g. "1013.25"
+        	      char altitude_string[20];
+
+        	      // Calculate altitude
+        	      float altitude_ft = (1.0f - powf(v / 1013.25f, 0.190284f)) * 145366.45f;
+
+        	      ftoa(pressure_string, v, 2); // e.g. "1013.25"
+        	      ftoa(altitude_string, altitude_ft, 2);
 
         	      snprintf(pressure_display_string, sizeof(pressure_display_string),
         	               "%s HPa", pressure_string);
+        	      snprintf(altitude_display_string, sizeof(altitude_display_string),
+        	               "%s ft", altitude_string);
         	  } else {
         	      snprintf(pressure_display_string, sizeof(pressure_display_string),
         	               "Pressure Failure");
         	  }
 
               memset(displayBuffer, 0, sizeof(displayBuffer));
-              ST7565_drawstring_anywhere_7x12(
+              ST7565_drawstring_anywhere(
                   (LCD_WIDTH - strlen(pressure_display_string) * 7) / 2,
-                  LCD_HEIGHT - 16,
+                  LCD_HEIGHT - 8,
                   pressure_display_string
               );
+              ST7565_drawstring_anywhere(
+                  (LCD_WIDTH - strlen(altitude_display_string) * 7) / 2,
+                  LCD_HEIGHT - 20,
+                  altitude_display_string
+              );
 
-              Spark_DrawLine(0, 0, SPARK_W, SPARK_H, PRESSURE, press_hist, press_head, press_count, 1, 8);
+              Spark_DrawLine(0, 0, SPARK_W, SPARK_H - 10, PRESSURE, press_hist, press_head, press_count, 1, 8);
 
               updateDisplay();
               break;
@@ -1291,7 +1305,7 @@ int main(void)
         	  memset(displayBuffer, 0, sizeof(displayBuffer));
 
         	  if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK) {
-        		  float incline_rad = fabsf(atan2f(ax, sqrtf(ay*ay + az*az)));
+        		  float incline_rad = fabsf(atan2f(ay, sqrtf(ax*ax + az*az)));
         		  float incline_deg = fabsf(incline_rad * (180.0f / 3.14159265f)); // need to add offset still
         		  Draw_Incline(incline_deg);
         	  } else {
@@ -1477,6 +1491,9 @@ static void MX_RTC_Init(void)
 
   /* USER CODE END RTC_Init 0 */
 
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
@@ -1492,6 +1509,38 @@ static void MX_RTC_Init(void)
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x5;
+  sTime.Minutes = 0x40;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_MARCH;
+  sDate.Date = 0x5;
+  sDate.Year = 0x26;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the WakeUp
+  */
+  if (HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_RTCCLK_DIV16) != HAL_OK)
   {
     Error_Handler();
   }
@@ -1599,8 +1648,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_12, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PA0 PA8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_8;
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -1619,15 +1668,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB3 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB8 */
+  /*Configure GPIO pin : PA8 */
   GPIO_InitStruct.Pin = GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB3 PB8 PB9 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_8|GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
