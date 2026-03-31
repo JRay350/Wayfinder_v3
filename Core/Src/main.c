@@ -84,6 +84,18 @@ SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 
 /* USER CODE BEGIN PV */
+static const float mag_bias[3] = {
+    117.217534f,
+    -17.582719f,
+    36.829141f
+};
+
+static const float mag_softiron[3][3] = {
+    { 19.763517f, -4.491816f,  2.220898f },
+    { -4.491816f, 20.859715f,  2.595340f },
+    {  2.220898f,  2.595340f, 21.156693f }
+};
+
 static volatile uint32_t last_pa0_ms = 0;
 static volatile uint32_t last_pb9_ms = 0;
 static volatile uint32_t last_pb8_ms = 0;
@@ -109,12 +121,6 @@ volatile bool edit_time_dirty = false;
 volatile bool blink = false;
 
 volatile CalibrationEditField_t calibration_field = TEMPERATURE_FIELD;
-
-float_t mx_off = -9.1f;
-float_t my_off = -118.35f;
-float_t mz_off = -168.55f;
-float_t sx = 73.05;
-float_t sy = 70.6;
 
 float_t temperature_offset = 0.0;
 float_t magnetometer_offset = 0.0;
@@ -1269,18 +1275,33 @@ int main(void)
               if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK &&
                   C6DOFIMU13_Mag_GetXYZ(&h6dof, &mx, &my, &mz) == HAL_OK)
               {
+                  // Remove hard iron bias
+                  float x = mx - mag_bias[0];
+                  float y = my - mag_bias[1];
+                  float z = mz - mag_bias[2];
 
-                  // Center the horizontal field vector
-                  float mx_c = (mx - mx_off);
-                  float my_c = (my - my_off);
+                  // Apply soft iron correction matrix
+                  float mx_c =
+                      mag_softiron[0][0] * x +
+                      mag_softiron[0][1] * y +
+                      mag_softiron[0][2] * z;
 
-                  // Heading (using your chosen convention atan2(my, -mx))
+                  float my_c =
+                      mag_softiron[1][0] * x +
+                      mag_softiron[1][1] * y +
+                      mag_softiron[1][2] * z;
+
+                  float mz_c =
+                      mag_softiron[2][0] * x +
+                      mag_softiron[2][1] * y +
+                      mag_softiron[2][2] * z;
+
+                  // Heading from calibrated magnetometer
                   float heading_rad = atan2f(my_c, mx_c);
-                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset;
+                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0f;
 
                   if (heading_deg < 0.0f) heading_deg += 360.0f;
                   if (heading_deg >= 360.0f) heading_deg -= 360.0f;
-
 
                   // Draw compass into displayBuffer only
                   Draw_Compass(heading_deg);
