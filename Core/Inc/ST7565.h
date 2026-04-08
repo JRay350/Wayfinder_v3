@@ -43,6 +43,11 @@ License along with this library.
 #define FONT8X13_SP      1
 #define FONT8X13_STEP    (FONT8X13_W + FONT8X13_SP)   // 9
 
+#define FONT8X40_W       11
+#define FONT8X40_H       28
+#define FONT8X40_SP      1
+#define FONT8X40_STEP    (FONT8X40_W + FONT8X40_SP)   // 9
+
 
 #define BLACK 1
 #define WHITE 0
@@ -122,6 +127,7 @@ extern SPI_HandleTypeDef hspi2;
   void ST7565_drawstring_anywhere_6x10(uint8_t x, uint8_t y, const char *s);
   void ST7565_drawstring_anywhere_7x12(uint8_t x, uint8_t y, const char *s);
   void ST7565_drawstring_anywhere_8x13(uint8_t x, uint8_t y, const char *s);
+  void ST7565_drawstring_anywhere_8x40(uint8_t x, uint8_t y, const char *s);
   static void ST7565_drawchar_anywhere_scaled(uint8_t x, uint8_t y, char c, uint8_t dstW, uint8_t dstH);
   static void draw_colon_7x12(uint8_t x, uint8_t y, uint8_t color);
   static void draw_colon_8x13(uint8_t x, uint8_t y, uint8_t color);

@@ -162,18 +162,20 @@ static void draw_colon_8x13(uint8_t x, uint8_t y, uint8_t color)
     }
 }
 
-static void ST7565_drawchar_anywhere_scaled(uint8_t x, uint8_t y, char c, uint8_t dstW, uint8_t dstH)
+static void ST7565_drawchar_anywhere_scaled(uint8_t x, uint8_t y, char c,
+                                            uint8_t dstW, uint8_t dstH)
 {
     const uint8_t srcW = 5, srcH = 8;
 
     for (uint8_t dx = 0; dx < dstW; dx++) {
-        uint8_t sx = (uint16_t)dx * srcW / dstW;   // 0..4
+        uint8_t sx = (uint16_t)dx * srcW / dstW;
         uint8_t col = font[(uint8_t)c * 5 + sx];
 
         for (uint8_t dy = 0; dy < dstH; dy++) {
-            uint8_t sy = (uint16_t)dy * srcH / dstH; // 0..7
-            uint8_t on = (col >> sy) & 1u;
-            ST7565_setpixel(x + dx, y + dy, on ? BLACK : WHITE);
+            uint8_t sy = (uint16_t)dy * srcH / dstH;
+            if ((col >> sy) & 1u) {
+                ST7565_setpixel(x + dx, y + dy, BLACK);
+            }
         }
     }
 }
@@ -190,42 +192,30 @@ void ST7565_drawstring_anywhere(uint8_t x, uint8_t y, const char* str)
 
 void ST7565_drawchar_anywhere(uint8_t x, uint8_t y, char c)
 {
-    // Special-case degree symbol: treat \xB0 as a custom glyph
     if ((uint8_t)c == 0xB0) {
-
-        // A readable small ring (5 columns, 8 rows)
-        // Bits are vertical: bit0 = top row of the 8-pixel cell in your current renderer
         static const uint8_t deg_cols[5] = { 0x00, 0x0E, 0x1B, 0x1B, 0x0E };
 
-        // Shiftable parameters
-
-        // Horizontal
         if (x < (LCD_WIDTH - 5)) x = (uint8_t)(x - 1);
-        // Vertical
         if (y >= 2) y = (uint8_t)(y + 2);
 
-        // Draw 5x8 degree glyph, and explicitly clear background in that box
         for (uint8_t i = 0; i < 5; i++) {
             uint8_t column = deg_cols[i];
             for (uint8_t j = 0; j < 8; j++) {
                 uint8_t yy = (uint8_t)(y + j);
-                if (yy < LCD_HEIGHT) {
-                    ST7565_setpixel((uint8_t)(x + i), yy,
-                                    (column & (1u << j)) ? BLACK : WHITE);
+                if (yy < LCD_HEIGHT && (column & (1u << j))) {
+                    ST7565_setpixel((uint8_t)(x + i), yy, BLACK);
                 }
             }
         }
         return;
     }
 
-    // Default: use font table
     for (uint8_t i = 0; i < 5; i++) {
         uint8_t column = font[(unsigned char)c * 5 + i];
         for (uint8_t j = 0; j < 8; j++) {
             uint8_t yy = (uint8_t)(y + j);
-            if (yy < LCD_HEIGHT) {
-                ST7565_setpixel((uint8_t)(x + i), yy,
-                                (column & (1u << j)) ? BLACK : WHITE);
+            if (yy < LCD_HEIGHT && (column & (1u << j))) {
+                ST7565_setpixel((uint8_t)(x + i), yy, BLACK);
             }
         }
     }
@@ -237,16 +227,14 @@ void ST7565_drawchar_anywhere_6x10(uint8_t x, uint8_t y, char c)
     const uint8_t dstW = 6, dstH = 10;
 
     for (uint8_t dx = 0; dx < dstW; dx++) {
-        // map destination x -> source x (0..4)
         uint8_t sx = (uint16_t)dx * srcW / dstW;
         uint8_t col = font[(uint8_t)c * 5 + sx];
 
         for (uint8_t dy = 0; dy < dstH; dy++) {
-            // map destination y -> source y (0..7)
             uint8_t sy = (uint16_t)dy * srcH / dstH;
-
-            uint8_t on = (col >> sy) & 1u;
-            ST7565_setpixel(x + dx, y + dy, on ? BLACK : WHITE);
+            if ((col >> sy) & 1u) {
+                ST7565_setpixel(x + dx, y + dy, BLACK);
+            }
         }
     }
 }
@@ -262,8 +250,6 @@ void ST7565_drawstring_anywhere_6x10(uint8_t x, uint8_t y, const char *s)
 void ST7565_drawchar_anywhere_7x12(uint8_t x, uint8_t y, char c)
 {
     if (c == ':') {
-        // Clear the glyph box so old pixels don't remain
-        ST7565_fillrect(x, y, FONT7X12_W, FONT7X12_H, WHITE);
         draw_colon_7x12(x, y, BLACK);
         return;
     }
@@ -304,8 +290,6 @@ void ST7565_drawstring_anywhere_7x12(uint8_t x, uint8_t y, const char *s)
 void ST7565_drawchar_anywhere_8x13(uint8_t x, uint8_t y, char c)
 {
     if (c == ':') {
-        // Clear its box first so old pixels don't linger
-        ST7565_fillrect(x, y, FONT8X13_W, FONT8X13_H, WHITE);
         draw_colon_8x13(x, y, BLACK);
         return;
     }
@@ -318,6 +302,19 @@ void ST7565_drawstring_anywhere_8x13(uint8_t x, uint8_t y, const char *s)
     while (*s) {
         ST7565_drawchar_anywhere_8x13(x, y, *s++);
         x += FONT8X13_STEP;
+    }
+}
+
+void ST7565_drawchar_anywhere_8x40(uint8_t x, uint8_t y, char c)
+{
+    ST7565_drawchar_anywhere_scaled(x, y, c, FONT8X40_W, FONT8X40_H);
+}
+
+void ST7565_drawstring_anywhere_8x40(uint8_t x, uint8_t y, const char *s)
+{
+    while (*s) {
+        ST7565_drawchar_anywhere_8x40(x, y, *s++);
+        x += FONT8X40_STEP;
     }
 }
 
@@ -482,7 +479,10 @@ void updateDisplay(void)
 }
 
 void ST7565_setpixel(uint8_t x, uint8_t y, uint8_t color)
-{  // Calculate the index into the display buffer
+{
+  if (x >= LCD_WIDTH || y >= LCD_HEIGHT) return;
+
+  // Calculate the index into the display buffer
   uint16_t index = (y / 8) * LCD_WIDTH + x;
 
   // Set the pixel color in the buffer

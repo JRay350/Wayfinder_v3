@@ -33,6 +33,8 @@ typedef struct {
 	uint8_t day;
 	uint8_t month;
 	uint16_t year;
+
+	uint8_t weekday;
 } DateTime_t;
 
 typedef enum {
@@ -169,6 +171,7 @@ static void IMU_Init(void);
 static void Spark_Fill(float *hist, uint8_t *head, uint8_t *count, float v);
 static void Spark_Push(float *hist, uint8_t *head, uint8_t *count, float v);
 static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface_State_t state, const float *hist,uint8_t head, uint8_t count, uint8_t draw_box,uint8_t xstep);
+static uint8_t CalculateWeekday(uint8_t day, uint8_t month, uint16_t year);
 void EnterSetTimeMode(void);
 void RTC_GetDateTime(DateTime_t *dt);
 HAL_StatusTypeDef RTC_CommitDateTime(const DateTime_t *dt);
@@ -394,6 +397,25 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
     }
 }
 
+// Use Zeller's Congruence algorithm
+static uint8_t CalculateWeekday(uint8_t day, uint8_t month, uint16_t year) {
+	// March is month 3, April is 4... Jan/Feb are treated as months 13 and 14 of prev year
+	if (month < 3) {
+		month += 12;
+		year -= 1;
+	}
+
+	uint16_t K = year % 100;
+	uint16_t J = year / 100;
+
+	// h = 0 -> Saturday, h = 6 -> Friday
+	uint8_t h = (day + (13 * (month + 1)) / 5 + K + K/4 + J/4 + 5*J) % 7;
+
+	// Convert to h = 1 -> Monday, h = 7 -> Sunday
+	uint8_t weekday = ((h + 5) % 7) + 1;
+	return weekday;
+}
+
 void EnterSetTimeMode(void)
 {
     RTC_GetDateTime(&edit_time);   // load current RTC time
@@ -415,6 +437,8 @@ void RTC_GetDateTime(DateTime_t *dt) {
     dt->day   = rtcDate.Date;
     dt->month = rtcDate.Month;
     dt->year  = 2000 + rtcDate.Year;
+
+    dt->weekday = CalculateWeekday(dt->day, dt->month, dt->year);
 }
 
 HAL_StatusTypeDef RTC_CommitDateTime(const DateTime_t *dt) {
@@ -435,7 +459,7 @@ HAL_StatusTypeDef RTC_CommitDateTime(const DateTime_t *dt) {
     date.Year = (uint8_t)(year - YEAR_MIN);
     date.Month = dt->month;
     date.Date  = dt->day;
-    date.WeekDay = RTC_WEEKDAY_SUNDAY; // Placeholder
+    date.WeekDay = CalculateWeekday(dt->day, dt->month, dt->year);
 
     if (HAL_RTC_SetTime(&hrtc, &time, RTC_FORMAT_BIN) != HAL_OK)
         return HAL_ERROR;
@@ -448,40 +472,81 @@ HAL_StatusTypeDef RTC_CommitDateTime(const DateTime_t *dt) {
 
 void RTC_DisplayDateTime(DateTime_t *dt)
 {
+    char weekday_str[5];
     char time_str[16];
     char date_str[16];
 
-    snprintf(time_str, sizeof(time_str), "%02u:%02u:%02u",
-             (unsigned)(dt->hours   % 24),
-             (unsigned)(dt->minutes % 60),
-             (unsigned)(dt->seconds % 60));
+    static const char *weekday_names[] = {
+        "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+    };
 
-    snprintf(date_str, sizeof(date_str), "%02u/%02u/%04u",
-             (unsigned)(dt->month % 13),
-             (unsigned)(dt->day   % 32),
-             (unsigned)dt->year);
+    uint8_t wd = dt->weekday;
+    if (wd < 1 || wd > 7) wd = 1;
+
+    snprintf(weekday_str, sizeof(weekday_str), "%s", weekday_names[wd - 1]);
+
+    snprintf(time_str, sizeof(time_str), "%02u:%02u",
+             (unsigned)(dt->hours % 24),
+             (unsigned)(dt->minutes % 60));
+
+    snprintf(date_str, sizeof(date_str), "%02u/%02u",
+             (unsigned)(dt->month),
+             (unsigned)(dt->day));
 
     memset(displayBuffer, 0, sizeof(displayBuffer));
 
-    /* ---------- Centering using 6x10 step ---------- */
-    uint16_t time_w = (uint16_t)strlen(time_str) * FONT8X13_STEP;
-    uint16_t date_w = (uint16_t)strlen(date_str) * FONT8X13_STEP;
+    /* ---- Font metrics ---- */
+    const uint8_t TIME_FONT_H    = 28;
+    const uint8_t TIME_FONT_STEP = 12;
 
-    uint8_t time_x = (time_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - time_w) / 2) : 0;
-    uint8_t date_x = (date_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - date_w) / 2) : 0;
+    const uint8_t SIDE_FONT_H    = FONT8X13_H;
+    const uint8_t SIDE_FONT_STEP = FONT8X13_STEP;
 
-    uint8_t gap = 8;
-    uint8_t block_h = 2 * FONT8X13_H + gap;
-    uint8_t top_y   = (LCD_HEIGHT > block_h) ? (uint8_t)((LCD_HEIGHT - block_h) / 2) : 0;
+    /* ---- Measured widths ---- */
+    uint16_t time_w    = (uint16_t)strlen(time_str)    * TIME_FONT_STEP;
+    uint16_t weekday_w = (uint16_t)strlen(weekday_str) * SIDE_FONT_STEP;
+    uint16_t date_w    = (uint16_t)strlen(date_str)    * SIDE_FONT_STEP;
 
-    uint8_t time_y = top_y;
-    uint8_t date_y = (uint8_t)(top_y + FONT6X10_H + gap);
+    uint16_t side_w = (weekday_w > date_w) ? weekday_w : date_w;
 
-    ST7565_drawstring_anywhere_8x13(time_x, time_y, time_str);
+    /* ---- Layout tuning ---- */
+    uint8_t left_margin = 4;
+    uint8_t right_margin = 8;
+    uint8_t col_gap = 16;
+    uint8_t row_gap = 4;
+
+    /* ---- Left column: time ---- */
+    uint8_t time_x = left_margin;
+    uint8_t time_y = (LCD_HEIGHT > TIME_FONT_H)
+                   ? (uint8_t)((LCD_HEIGHT - TIME_FONT_H) / 2)
+                   : 0;
+
+    /* ---- Right column: pinned to right side ---- */
+    uint8_t right_x = (LCD_WIDTH > (right_margin + side_w))
+                    ? (uint8_t)(LCD_WIDTH - right_margin - side_w)
+                    : 0;
+
+    uint8_t right_h = (uint8_t)(SIDE_FONT_H + row_gap + SIDE_FONT_H);
+    uint8_t right_y = (LCD_HEIGHT > right_h)
+                    ? (uint8_t)((LCD_HEIGHT - right_h) / 2)
+                    : 0;
+
+    /* ---- Safety: if columns collide, move right block just after time ---- */
+    if ((uint16_t)(time_x + time_w + col_gap) > right_x) {
+        right_x = (uint8_t)(time_x + time_w + col_gap);
+    }
+
+    /* ---- Center weekday/date within right column ---- */
+    uint8_t weekday_x = (uint8_t)(right_x + (side_w - weekday_w) / 2);
+    uint8_t date_x    = (uint8_t)(right_x + (side_w - date_w) / 2);
+
+    uint8_t weekday_y = right_y;
+    uint8_t date_y    = (uint8_t)(right_y + SIDE_FONT_H + row_gap);
+
+    /* ---- Draw ---- */
+    ST7565_drawstring_anywhere_8x40(time_x, time_y, time_str);
+    ST7565_drawstring_anywhere_8x13(weekday_x, weekday_y, weekday_str);
     ST7565_drawstring_anywhere_8x13(date_x, date_y, date_str);
-
-    // if you want immediate refresh here:
-    // updateDisplay();
 }
 
 void RTC_DisplayEditDateTime(void)
@@ -602,8 +667,6 @@ void RTC_DisplayEditDateTime(void)
             );
         }
     }
-
-    // updateDisplay(); // call if needed
 }
 
 
