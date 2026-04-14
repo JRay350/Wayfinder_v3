@@ -98,6 +98,10 @@ static const float mag_softiron[3][3] = {
     {  2.220898f,  2.595340f, 21.156693f }
 };
 
+// Used for auto-sleep functionality
+volatile uint32_t last_activity_ms = 0;
+
+// Used for debounce timings
 static volatile uint32_t last_pa0_ms = 0;
 static volatile uint32_t last_pb9_ms = 0;
 static volatile uint32_t last_pb8_ms = 0;
@@ -188,6 +192,7 @@ void Draw_Incline(float incline_deg);
 void ftoa(char* buf, float value, int decimals);
 float Calculate_Altitude(float pressure_hpa);
 float Celsius_To_Fahrenheit(float celsius_temperature);
+static void UpdateLastActivityTime(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -1064,6 +1069,10 @@ float Celsius_To_Fahrenheit(float celsius_temperature) {
 	return celsius_temperature * 1.8 + 32;
 }
 
+static void UpdateLastActivityTime(void) {
+	last_activity_ms = HAL_GetTick();
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -1210,6 +1219,19 @@ int main(void)
           // reset so when you re-enter COMPASS it updates immediately
           next_compass_ms = 0;
           next_incline_ms = 0;
+      }
+
+      // Auto-sleep Check
+      if (interface_state != OFF) {
+          uint32_t current_time_ms = HAL_GetTick();
+          if ((current_time_ms - last_activity_ms) >= AUTO_TIMEOUT_MS) {
+              ST7565_off();
+              isDisplayOn = false;
+
+              prev_state = interface_state;
+              interface_state = OFF;
+              ui_dirty = false;
+          }
       }
 
       /* ---------- Draw only when dirty ---------- */
@@ -1799,6 +1821,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         // Optional: confirm it's actually still pressed (active-low)
         if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) != GPIO_PIN_RESET) return;
 
+        // Trigger Timestamp for User Activity for Sleep Mode Processing
+        UpdateLastActivityTime();
+
         if (interface_state == SET_TIME) {
             RTC_CommitDateTime(&edit_time);
             edit_time_dirty = false;
@@ -1816,6 +1841,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         last_pb9_ms = now;
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) != GPIO_PIN_RESET) return;
+
+        // Trigger Timestamp for User Activity for Sleep Mode Processing
+        UpdateLastActivityTime();
 
         if (interface_state == SET_TIME) {
             IncrementTime();
@@ -1838,6 +1866,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8) != GPIO_PIN_RESET) return;
 
+        // Trigger Timestamp for User Activity for Sleep Mode Processing
+        UpdateLastActivityTime();
+
         if (interface_state == SET_TIME) {
             DecrementTime();
         } else if (interface_state == CALIBRATION) {
@@ -1859,6 +1890,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         last_pb3_ms = now;
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) != GPIO_PIN_RESET) return;
+
+        // Trigger Timestamp for User Activity for Sleep Mode Processing
+        UpdateLastActivityTime();
 
         switch (interface_state) {
             case SET_TIME:     NextTimeField(); break;
