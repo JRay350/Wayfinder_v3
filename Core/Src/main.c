@@ -98,6 +98,9 @@ static const float mag_softiron[3][3] = {
     {  2.220898f,  2.595340f, 21.156693f }
 };
 
+static float prev_ax = 0, prev_ay = 0, prev_az = 0;
+static bool prev_valid = false;
+
 // Used for auto-sleep functionality
 volatile uint32_t last_activity_ms = 0;
 
@@ -193,6 +196,7 @@ void ftoa(char* buf, float value, int decimals);
 float Calculate_Altitude(float pressure_hpa);
 float Celsius_To_Fahrenheit(float celsius_temperature);
 static void UpdateLastActivityTime(void);
+float ComputeMotionDelta(float ax, float ay, float az);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -1073,6 +1077,29 @@ static void UpdateLastActivityTime(void) {
 	last_activity_ms = HAL_GetTick();
 }
 
+float ComputeMotionDelta(float ax, float ay, float az)
+{
+	// If taking sample for first time since device startup
+    if (!prev_valid) {
+        prev_ax = ax;
+        prev_ay = ay;
+        prev_az = az;
+        prev_valid = true;
+        return 0.0;
+    }
+
+    float delta =
+        fabsf(ax - prev_ax) +
+        fabsf(ay - prev_ay) +
+        fabsf(az - prev_az);
+
+    prev_ax = ax;
+    prev_ay = ay;
+    prev_az = az;
+
+    return delta;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -1145,6 +1172,7 @@ int main(void)
   updateDisplay();
   isDisplayOn = false;
 
+  static uint32_t last_shake_poll_ms = 0;
 
   /* USER CODE END 2 */
 
@@ -1192,10 +1220,10 @@ int main(void)
       static uint32_t next_compass_ms = 0;
       static uint32_t next_incline_ms = 0;
 
+
+      uint32_t now = HAL_GetTick();
       if (interface_state == COMPASS)
       {
-          uint32_t now = HAL_GetTick();
-
           // initialize on first entry (or if it was 0)
           if (next_compass_ms == 0) next_compass_ms = now;
 
@@ -1205,7 +1233,6 @@ int main(void)
               ui_dirty = true;  // triggers COMPASS redraw at ~20 Hz
           }
       } else if (interface_state == INCLINE) {
-    	    uint32_t now = HAL_GetTick();
     	    if (next_incline_ms == 0) next_incline_ms = now;
 
     	    if ((int32_t)(now - next_incline_ms) >= 0)
@@ -1411,9 +1438,7 @@ int main(void)
         	  memset(displayBuffer, 0, sizeof(displayBuffer));
 
         	  if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK) {
-        		  float incline_rad = fabsf(atan2f(ay, sqrtf(ax*ax + az*az)));
-        		  float incline_deg = fabsf(incline_rad * (180.0f / 3.14159265f)); // need to add offset still
-        		  Draw_Incline(incline_deg);
+
         	  } else {
                   const char *IMU_error = "IMU Failure";
                   ST7565_drawstring_anywhere(
@@ -1431,6 +1456,29 @@ int main(void)
               break;
           }
       }
+
+      // Shake-To-Wake Functionality
+      if (interface_state == OFF && (now - last_shake_poll_ms) > SHAKE_POLL_MS)
+         {
+    	  	 last_shake_poll_ms = now;
+             float ax, ay, az;
+
+             if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK)
+             {
+                 float delta = ComputeMotionDelta(ax, ay, az);
+
+                 if (delta > 7.5) {
+                     ST7565_on();
+                     isDisplayOn = true;
+
+                     interface_state = TIME;
+                     UpdateLastActivityTime();
+                     ui_dirty = true;
+
+                     prev_valid = false; // reset motion baseline
+                 }
+             }
+         }
 
 
     /* USER CODE END WHILE */
@@ -1625,8 +1673,8 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x19;
-  sTime.Minutes = 0x57;
+  sTime.Hours = 0x20;
+  sTime.Minutes = 0x13;
   sTime.Seconds = 0x0;
   sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   sTime.StoreOperation = RTC_STOREOPERATION_RESET;
@@ -1636,7 +1684,7 @@ static void MX_RTC_Init(void)
   }
   sDate.WeekDay = RTC_WEEKDAY_MONDAY;
   sDate.Month = RTC_MONTH_APRIL;
-  sDate.Date = 0x7;
+  sDate.Date = 0x13;
   sDate.Year = 0x26;
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
