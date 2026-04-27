@@ -99,6 +99,7 @@ static const float mag_softiron[3][3] = {
 };
 
 static volatile uint32_t last_pa0_ms = 0;
+static volatile uint32_t last_pa10_ms = 0;
 static volatile uint32_t last_pb9_ms = 0;
 static volatile uint32_t last_pb8_ms = 0;
 static volatile uint32_t last_pb3_ms = 0;
@@ -1136,6 +1137,9 @@ int main(void)
   updateDisplay();
   isDisplayOn = false;
 
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+
 
   /* USER CODE END 2 */
 
@@ -1727,19 +1731,22 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|GPIO_PIN_15, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_12, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  /*Configure GPIO pins : PA0 PA10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  /*Configure GPIO pins : PA1 PA4 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1877,6 +1884,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             case CALIBRATION:  NextCalibrationField(); break;
             default: break;
         }
+    }
+    else if (GPIO_Pin == GPIO_PIN_10) { // PA10
+        if ((uint32_t)(now - last_pa10_ms) < BTN_DEBOUNCE_MS) return;
+        last_pa10_ms = now;
+
+        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) != GPIO_PIN_RESET) return;
+
+    	// Toggle the display backlight
+    	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+    	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
     }
 }
 

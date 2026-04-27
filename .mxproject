@@ -3,7 +3,7 @@ LibFiles=Drivers\STM32L0xx_HAL_Driver\Inc\stm32l0xx_hal_i2c.h;Drivers\STM32L0xx_
 
 [PreviousUsedCubeIDEFiles]
 SourceFiles=Core\Src\main.c;Core\Src\stm32l0xx_it.c;Core\Src\stm32l0xx_hal_msp.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_i2c.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_i2c_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rcc.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rcc_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_flash_ramfunc.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_flash.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_flash_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_gpio.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_dma.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_pwr.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_pwr_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_cortex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_exti.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rtc.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rtc_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_spi.c;Drivers\CMSIS\Device\ST\STM32L0xx\Source\Templates\system_stm32l0xx.c;Core\Src\system_stm32l0xx.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_i2c.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_i2c_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rcc.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rcc_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_flash_ramfunc.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_flash.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_flash_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_gpio.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_dma.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_pwr.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_pwr_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_cortex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_exti.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rtc.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_rtc_ex.c;Drivers\STM32L0xx_HAL_Driver\Src\stm32l0xx_hal_spi.c;Drivers\CMSIS\Device\ST\STM32L0xx\Source\Templates\system_stm32l0xx.c;Core\Src\system_stm32l0xx.c;;;
-HeaderPath=Drivers\STM32L0xx_HAL_Driver\Inc;Drivers\STM32L0xx_HAL_Driver\Inc\Legacy;Drivers\CMSIS\Device\ST\STM32L0xx\Include;Drivers\CMSIS\Include;Drivers\BSP\Components\lps22hh;Drivers\BSP\Components\stts22h;Core\Inc;
+HeaderPath=Drivers\STM32L0xx_HAL_Driver\Inc;Drivers\STM32L0xx_HAL_Driver\Inc\Legacy;Drivers\CMSIS\Device\ST\STM32L0xx\Include;Drivers\CMSIS\Include;Core\Inc;
 CDefines=USE_HAL_DRIVER;STM32L051xx;USE_HAL_DRIVER;USE_HAL_DRIVER;
 
 [PreviousUsedIarFiles]
@@ -13,11 +13,10 @@ CDefines=USE_HAL_DRIVER;STM32L051xx;USE_HAL_DRIVER;USE_HAL_DRIVER;
 
 [PreviousGenFiles]
 AdvancedFolderStructure=true
-HeaderFileListSize=4
+HeaderFileListSize=3
 HeaderFiles#0=..\Core\Inc\stm32l0xx_it.h
-HeaderFiles#1=..\Core\Inc\RTE_Components.h
-HeaderFiles#2=..\Core\Inc\stm32l0xx_hal_conf.h
-HeaderFiles#3=..\Core\Inc\main.h
+HeaderFiles#1=..\Core\Inc\stm32l0xx_hal_conf.h
+HeaderFiles#2=..\Core\Inc\main.h
 HeaderFolderListSize=1
 HeaderPath#0=..\Core\Inc
 HeaderFiles=;
@@ -28,12 +27,4 @@ SourceFiles#2=..\Core\Src\main.c
 SourceFolderListSize=1
 SourcePath#0=..\Core\Src
 SourceFiles=;
-
-[ThirdPartyIp]
-ThirdPartyIpNumber=1
-ThirdPartyIpName#0=STMicroelectronics.X-CUBE-MEMS1.12.0.0
-
-[ThirdPartyIp#STMicroelectronics.X-CUBE-MEMS1.12.0.0]
-header=..\Drivers\BSP\Components\lps22hh\lps22hh_reg.h;..\Drivers\BSP\Components\lps22hh\lps22hh.h;..\Drivers\BSP\Components\stts22h\stts22h_reg.h;..\Drivers\BSP\Components\stts22h\stts22h.h;
-source=..\Drivers\BSP\Components\lps22hh\lps22hh_reg.c;..\Drivers\BSP\Components\lps22hh\lps22hh.c;..\Drivers\BSP\Components\stts22h\stts22h_reg.c;..\Drivers\BSP\Components\stts22h\stts22h.c;
 
