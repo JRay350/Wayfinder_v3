@@ -72,7 +72,7 @@ typedef struct {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define MAG_LOG_SAMPLES     500
-#define MAG_LOG_PERIOD_MS   40U     // 25 Hz logging
+#define MAG_LOG_PERIOD_MS   10U     // 100 Hz logging
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -891,54 +891,61 @@ void NextCalibrationField(void) {
 
 void Draw_Compass(float heading_deg)
 {
-    // --- Layout: compass above, text below ---
-    const uint8_t text_h   = 14;  // 7x12 font (12px) + spacing
-    const uint8_t top_h    = (LCD_HEIGHT > text_h) ? (LCD_HEIGHT - text_h) : LCD_HEIGHT;
+	if (mag_log_done) {
+	    char buff[16];
+	    snprintf(buff, sizeof(buff), "Done");
+	    ST7565_drawstring_anywhere_7x12(50, 25, buff);
+	} else {
+	    // --- Layout: compass above, text below ---
+	    const uint8_t text_h   = 14;  // 7x12 font (12px) + spacing
+	    const uint8_t top_h    = (LCD_HEIGHT > text_h) ? (LCD_HEIGHT - text_h) : LCD_HEIGHT;
 
-    // Center compass in the top region
-    const uint8_t cx = (uint8_t)(LCD_WIDTH / 2);
-    const uint8_t cy = (uint8_t)(top_h / 2);
+	    // Center compass in the top region
+	    const uint8_t cx = (uint8_t)(LCD_WIDTH / 2);
+	    const uint8_t cy = (uint8_t)(top_h / 2);
 
-    // Radius must fit inside top region (and screen width)
-    uint8_t r = 15;
-    if (cy > 1 && r > (uint8_t)(cy - 1)) r = (uint8_t)(cy - 1);
-    // also avoid left/right clipping (very conservative)
-    if (cx > 1 && r > (uint8_t)(cx - 1)) r = (uint8_t)(cx - 1);
+	    // Radius must fit inside top region (and screen width)
+	    uint8_t r = 15;
+	    if (cy > 1 && r > (uint8_t)(cy - 1)) r = (uint8_t)(cy - 1);
+	    // also avoid left/right clipping (very conservative)
+	    if (cx > 1 && r > (uint8_t)(cx - 1)) r = (uint8_t)(cx - 1);
 
-    // Draw outer circle
-    ST7565_drawcircle(cx, cy, r, BLACK);
+	    // Draw outer circle
+	    ST7565_drawcircle(cx, cy, r, BLACK);
 
-    // Cardinal letters (assumes your stated Y-UP convention)
-    ST7565_drawchar_anywhere(cx - 2,        cy + r + 1,  'N');  // above
-    ST7565_drawchar_anywhere(cx + r + 3,    cy - 3,      'E');  // right
-    ST7565_drawchar_anywhere(cx - 2,        cy - r - 9,  'S');  // below
-    ST7565_drawchar_anywhere(cx - r - 9,    cy - 3,      'W');  // left
+	    // Cardinal letters (assumes your stated Y-UP convention)
+	    ST7565_drawchar_anywhere(cx - 2,        cy + r + 1,  'N');  // above
+	    ST7565_drawchar_anywhere(cx + r + 3,    cy - 3,      'E');  // right
+	    ST7565_drawchar_anywhere(cx - 2,        cy - r - 9,  'S');  // below
+	    ST7565_drawchar_anywhere(cx - r - 9,    cy - 3,      'W');  // left
 
-    // Needle math (0° points North)
-    float angle = heading_deg * (3.14159265f / 180.0f);
+	    // Needle math (0° points North)
+	    float angle = heading_deg * (3.14159265f / 180.0f);
 
-    float fx = (float)cx + (float)r * sinf(angle);
-    float fy = (float)cy + (float)r * cosf(angle);   // Y-UP as you wrote
+	    float fx = (float)cx + (float)r * sinf(angle);
+	    float fy = (float)cy + (float)r * cosf(angle);   // Y-UP as you wrote
 
-    uint8_t x1 = (uint8_t)(fx + 0.5f);
-    uint8_t y1 = (uint8_t)(fy + 0.5f);
+	    uint8_t x1 = (uint8_t)(fx + 0.5f);
+	    uint8_t y1 = (uint8_t)(fy + 0.5f);
 
-    ST7565_drawline(cx, cy, x1, y1, BLACK, 2);
+	    ST7565_drawline(cx, cy, x1, y1, BLACK, 2);
 
-    // --- Heading text below the compass ---
-    char degree_string[8];
-    ftoa(degree_string, heading_deg, 1);
+	    // --- Heading text below the compass ---
+	    char degree_string[8];
+	    ftoa(degree_string, heading_deg, 1);
 
-    char buff[16];
-    snprintf(buff, sizeof(buff), "%s%c", degree_string, (char)DEGREE_CHAR);
+	    char buff[16];
+	    snprintf(buff, sizeof(buff), "%s%c", degree_string, (char)DEGREE_CHAR);
 
-    // Center the 7x12 text on the bottom row area.
-    // 7px/char approx; adjust if your font differs.
-    uint8_t text_w = (uint8_t)(strlen(buff) * 7);
-    uint8_t tx = (text_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - text_w) / 2) : 0;
-    uint8_t ty = (uint8_t)(LCD_HEIGHT - 12); // last 12px tall band
+	    // Center the 7x12 text on the bottom row area.
+	    // 7px/char approx; adjust if your font differs.
+	    uint8_t text_w = (uint8_t)(strlen(buff) * 7);
+	    uint8_t tx = (text_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - text_w) / 2) : 0;
+	    uint8_t ty = (uint8_t)(LCD_HEIGHT - 12); // last 12px tall band
 
-    ST7565_drawstring_anywhere_7x12(tx, ty, buff);
+	    ST7565_drawstring_anywhere_7x12(tx, ty, buff);
+	}
+
 }
 
 void Draw_Incline(float incline_deg)
