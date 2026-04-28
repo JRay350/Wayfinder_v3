@@ -1065,7 +1065,8 @@ void ftoa(char *buf, float value, int decimals)
 }
 
 float Calculate_Altitude(float pressure_hpa) {
-	float base = pressure_hpa / 1013.25;
+	float sea_level_pressure = 1013.25 + pressure_offset;
+	float base = pressure_hpa / sea_level_pressure;
 	float exp = 0.190284;
 	return (1 - pow(base, exp)) * 145366.45;
 }
@@ -1291,21 +1292,19 @@ int main(void)
         	  float_t pressure;
 
         	  if (LPS22HH_PRESS_GetPressure(&lps22hh, &pressure) == LPS22HH_OK) {
-        		  float v = pressure + pressure_offset;
-
         		  if (press_count == 0) {
         		        // Prefill so the sparkline is immediately fully drawn (flat line)
-        		        Spark_Fill(press_hist, &press_head, &press_count, v);
+        		        Spark_Fill(press_hist, &press_head, &press_count, pressure);
         		  }
 
-        		  Spark_Push(press_hist, &press_head, &press_count, v);
+        		  Spark_Push(press_hist, &press_head, &press_count, pressure);
         	      char pressure_string[20];
         	      char altitude_string[20];
 
         	      // Calculate altitude
-        	      float altitude_ft = (1.0f - powf(v / 1013.25f, 0.190284f)) * 145366.45f;
+        	      float altitude_ft = Calculate_Altitude(pressure);
 
-        	      ftoa(pressure_string, v, 2); // e.g. "1013.25"
+        	      ftoa(pressure_string, pressure, 2); // e.g. "1013.25"
         	      ftoa(altitude_string, altitude_ft, 2);
 
         	      snprintf(pressure_display_string, sizeof(pressure_display_string),
