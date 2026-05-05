@@ -1175,6 +1175,7 @@ int main(void)
   isDisplayOn = false;
 
   static uint32_t last_shake_poll_ms = 0;
+  static uint32_t last_shake_toggle_ms = 0;
 
   /* USER CODE END 2 */
 
@@ -1187,11 +1188,12 @@ int main(void)
 	      power_button_flag = 0;
 
 	      if (interface_state == OFF) {
+	          interface_state = TIME;
 	          // Turn display on and go to a real screen
 	    	  ST7565_on();
 	    	  isDisplayOn = true;
 
-	          interface_state = TIME;
+
 	          ui_dirty = true;
 	      } else {
 	          // Turn display off and enter OFF state
@@ -1381,6 +1383,10 @@ int main(void)
           case COMPASS: {
               float ax, ay, az;
               float mx, my, mz;
+              float ax_n, ay_n, az_n;
+              float norm;
+              float roll, pitch;
+              float Xh, Yh;
 
               memset(displayBuffer, 0, sizeof(displayBuffer));
 
@@ -1408,9 +1414,29 @@ int main(void)
                       mag_softiron[2][1] * y +
                       mag_softiron[2][2] * z;
 
-                  // Heading from calibrated magnetometer
-                  float heading_rad = atan2f(my_c, mx_c);
-                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0;
+                  norm = sqrtf(ax * ax + ay * ay + az * az);
+                  ax_n = 0.0f;
+                  ay_n = 0.0f;
+                  az_n = 1.0f;
+
+                  if (norm > 0.1f)
+                  {
+                      ax_n = ax / norm;
+                      ay_n = ay / norm;
+                      az_n = az / norm;
+                  }
+
+                  roll = atan2f(ay_n, az_n);
+                  pitch = atan2f(-ax_n, sqrtf(ay_n * ay_n + az_n * az_n));
+
+                  Xh = mx_c * cosf(pitch) + mz_c * sinf(pitch);
+                  Yh = mx_c * sinf(roll) * sinf(pitch) +
+                       my_c * cosf(roll) -
+                       mz_c * sinf(roll) * cosf(pitch);
+
+                  // Heading from tilt-compensated calibrated magnetometer
+                  float heading_rad = atan2f(Yh, Xh);
+                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0f;
 
                   if (heading_deg < 0.0f) heading_deg += 360.0f;
                   if (heading_deg >= 360.0f) heading_deg -= 360.0f;
@@ -1457,28 +1483,41 @@ int main(void)
           }
       }
 
-      // Shake-To-Wake Functionality
-      if (interface_state == OFF && (now - last_shake_poll_ms) > SHAKE_POLL_MS)
-         {
-    	  	 last_shake_poll_ms = now;
-             float ax, ay, az;
+      // Shake-To-Wake / Shake-To-Sleep
+      {
+          uint32_t shake_now = HAL_GetTick();
+          if ((shake_now - last_shake_poll_ms) > SHAKE_POLL_MS) {
+              last_shake_poll_ms = shake_now;
 
-             if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK)
-             {
-                 float delta = ComputeMotionDelta(ax, ay, az);
+              /* Snapshot state NOW, after all earlier transitions this iteration */
+              Interface_State_t state_at_poll = interface_state;
 
-                 if (delta > 7.5) {
-                     ST7565_on();
-                     isDisplayOn = true;
+              float ax, ay, az;
+              if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK) {
+                  float delta = ComputeMotionDelta(ax, ay, az);
 
-                     interface_state = TIME;
-                     UpdateLastActivityTime();
-                     ui_dirty = true;
+                  if (delta > 7.5f &&
+                      (uint32_t)(shake_now - last_shake_toggle_ms) >= 750U) {
 
-                     prev_valid = false; // reset motion baseline
-                 }
-             }
-         }
+                      last_shake_toggle_ms = shake_now;
+                      prev_valid = false;
+
+                      if (state_at_poll == OFF) {
+                          interface_state = TIME;
+                          ST7565_on();
+                          isDisplayOn = true;
+                          UpdateLastActivityTime();
+                          ui_dirty = true;
+                      } else {
+                          interface_state = OFF;
+                          ST7565_off();
+                          isDisplayOn = false;
+                          ui_dirty = false;
+                      }
+                  }
+              }
+          }
+      }
 
 
     /* USER CODE END WHILE */
