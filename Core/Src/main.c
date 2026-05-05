@@ -87,15 +87,15 @@ SPI_HandleTypeDef hspi2;
 
 /* USER CODE BEGIN PV */
 static const float mag_bias[3] = {
-	32.71462906144759f,
-	-0.7991083299147448f,
-	 -490.62837330874515f
+	132.30558640063234,
+	33.271282971992065,
+	-525.2472235060491
 };
 
 static const float mag_softiron[3][3] = {
-    { 18.839213202457888, -1.7774331813014055, -0.05522349251318738 },
-    {-1.7774331813014086, 20.181499479644405, 0.6296784649620719},
-    { -0.05522349251318881, 0.6296784649620724, 19.049182412469467 }
+    {  19.03280489242586, -1.5731734544724312, 0.1032820245011633 },
+    {-1.5731734544724343,  20.443466630136957, 0.6245395764881244},
+    { 0.10328202450116475, 0.6245395764881235, 19.334706279055993 }
 };
 
 static float prev_ax = 0, prev_ay = 0, prev_az = 0;
@@ -1410,7 +1410,7 @@ int main(void)
 
                   // Heading from calibrated magnetometer
                   float heading_rad = atan2f(my_c, mx_c);
-                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0f;
+                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0;
 
                   if (heading_deg < 0.0f) heading_deg += 360.0f;
                   if (heading_deg >= 360.0f) heading_deg -= 360.0f;
