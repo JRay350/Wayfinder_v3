@@ -1483,41 +1483,26 @@ int main(void)
           }
       }
 
-      // Shake-To-Wake / Shake-To-Sleep
-      {
-          uint32_t shake_now = HAL_GetTick();
-          if ((shake_now - last_shake_poll_ms) > SHAKE_POLL_MS) {
-              last_shake_poll_ms = shake_now;
+      // Shake-To-Wake Functionality
+      if (interface_state == OFF && (now - last_shake_poll_ms) > SHAKE_POLL_MS)
+         {
+    	  	 last_shake_poll_ms = now;
+             float ax, ay, az;
 
-              /* Snapshot state NOW, after all earlier transitions this iteration */
-              Interface_State_t state_at_poll = interface_state;
+             if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK)
+             {
+                 float delta = ComputeMotionDelta(ax, ay, az);
 
-              float ax, ay, az;
-              if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK) {
-                  float delta = ComputeMotionDelta(ax, ay, az);
-
-                  if (delta > 7.5f &&
-                      (uint32_t)(shake_now - last_shake_toggle_ms) >= 750U) {
-
-                      last_shake_toggle_ms = shake_now;
-                      prev_valid = false;
-
-                      if (state_at_poll == OFF) {
-                          interface_state = TIME;
-                          ST7565_on();
-                          isDisplayOn = true;
-                          UpdateLastActivityTime();
-                          ui_dirty = true;
-                      } else {
-                          interface_state = OFF;
-                          ST7565_off();
-                          isDisplayOn = false;
-                          ui_dirty = false;
-                      }
-                  }
-              }
-          }
-      }
+                 if (delta > 7.5) {
+                     ST7565_on();
+                     isDisplayOn = true;
+                     interface_state = TIME;
+                     UpdateLastActivityTime();
+                     ui_dirty = true;
+                     prev_valid = false; // reset motion baseline
+                 }
+             }
+         }
 
 
     /* USER CODE END WHILE */
