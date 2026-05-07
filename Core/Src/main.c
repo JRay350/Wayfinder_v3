@@ -1383,10 +1383,6 @@ int main(void)
           case COMPASS: {
               float ax, ay, az;
               float mx, my, mz;
-              float ax_n, ay_n, az_n;
-              float norm;
-              float roll, pitch;
-              float Xh, Yh;
 
               memset(displayBuffer, 0, sizeof(displayBuffer));
 
@@ -1414,29 +1410,9 @@ int main(void)
                       mag_softiron[2][1] * y +
                       mag_softiron[2][2] * z;
 
-                  norm = sqrtf(ax * ax + ay * ay + az * az);
-                  ax_n = 0.0f;
-                  ay_n = 0.0f;
-                  az_n = 1.0f;
-
-                  if (norm > 0.1f)
-                  {
-                      ax_n = ax / norm;
-                      ay_n = ay / norm;
-                      az_n = az / norm;
-                  }
-
-                  roll = atan2f(ay_n, az_n);
-                  pitch = atan2f(-ax_n, sqrtf(ay_n * ay_n + az_n * az_n));
-
-                  Xh = mx_c * cosf(pitch) + mz_c * sinf(pitch);
-                  Yh = mx_c * sinf(roll) * sinf(pitch) +
-                       my_c * cosf(roll) -
-                       mz_c * sinf(roll) * cosf(pitch);
-
-                  // Heading from tilt-compensated calibrated magnetometer
-                  float heading_rad = atan2f(Xh, -Yh); // 90 deg CCW board orientation: swap axes
-                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0f;
+                  // Heading from calibrated magnetometer
+                  float heading_rad = atan2f(my_c, mx_c);
+                  float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0;
 
                   if (heading_deg < 0.0f) heading_deg += 360.0f;
                   if (heading_deg >= 360.0f) heading_deg -= 360.0f;
