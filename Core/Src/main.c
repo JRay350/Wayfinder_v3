@@ -1435,7 +1435,7 @@ int main(void)
                        mz_c * sinf(roll) * cosf(pitch);
 
                   // Heading from tilt-compensated calibrated magnetometer
-                  float heading_rad = atan2f(Yh, Xh);
+                  float heading_rad = atan2f(Xh, -Yh); // 90 deg CCW board orientation: swap axes
                   float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0f;
 
                   if (heading_deg < 0.0f) heading_deg += 360.0f;
@@ -1464,7 +1464,9 @@ int main(void)
         	  memset(displayBuffer, 0, sizeof(displayBuffer));
 
         	  if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK) {
-
+        		  float incline_rad = fabsf(atan2f(ay, sqrtf(ax*ax + az*az)));
+        		  float incline_deg = fabsf(incline_rad * (180.0f / 3.14159265f) + accelerometer_offset);
+        		  Draw_Incline(incline_deg);
         	  } else {
                   const char *IMU_error = "IMU Failure";
                   ST7565_drawstring_anywhere(
