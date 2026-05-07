@@ -1484,7 +1484,7 @@ int main(void)
       }
 
       // Shake-To-Wake Functionality
-      if (interface_state == OFF && (now - last_shake_poll_ms) > SHAKE_POLL_MS)
+      if ((now - last_shake_poll_ms) > SHAKE_POLL_MS)
          {
     	  	 last_shake_poll_ms = now;
              float ax, ay, az;
@@ -1494,12 +1494,22 @@ int main(void)
                  float delta = ComputeMotionDelta(ax, ay, az);
 
                  if (delta > 7.5) {
-                     ST7565_on();
-                     isDisplayOn = true;
-                     interface_state = TIME;
-                     UpdateLastActivityTime();
-                     ui_dirty = true;
-                     prev_valid = false; // reset motion baseline
+                	 if (interface_state == OFF) {
+                         ST7565_on();
+                         isDisplayOn = true;
+                         interface_state = TIME;
+                         UpdateLastActivityTime();
+                         ui_dirty = true;
+                         prev_valid = false; // reset motion baseline
+                	 } else {
+                		 ST7565_off();
+                		 isDisplayOn = false;
+                		 interface_state = OFF;
+                         UpdateLastActivityTime();
+                         ui_dirty = false;
+                         prev_valid = false;
+                	 }
+
                  }
              }
          }
