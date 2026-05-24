@@ -1272,23 +1272,33 @@ int main(void)
           }
       }
 
+	  float temperature;
+	  float pressure;
+	  int32_t temperature_retrieval = STTS22H_TEMP_GetTemperature(&stts22h, &temperature);
+	  int32_t pressure_retrieval = LPS22HH_PRESS_GetPressure(&lps22hh, &pressure);
+
+	  if (temperature_retrieval == STTS22H_OK) {
+		  temperature = Celsius_To_Fahrenheit(temperature) + temperature_offset;
+
+		  if (temp_count == 0) {
+			  // Prefill so the sparkline is immediately fully drawn (flat line)
+			  Spark_Fill(temp_hist, &temp_head, &temp_count, temperature);
+		  }
+
+	      Spark_Push(temp_hist, &temp_head, &temp_count, temperature);
+	  }
+
+	  if (pressure_retrieval == LPS22HH_OK) {
+		  if (press_count == 0) {
+			  Spark_Fill(press_hist, &press_head, &press_count, pressure);
+		  }
+
+		  Spark_Push(press_hist, &press_head, &press_count, pressure);
+	  }
+
       /* ---------- Draw only when dirty ---------- */
       if (ui_dirty) {
           ui_dirty = false;
-
-    	  float temperature;
-
-    	  if (STTS22H_TEMP_GetTemperature(&stts22h, &temperature) == STTS22H_OK) {
-    		  temperature = Celsius_To_Fahrenheit(temperature);
-    		  float v = temperature + temperature_offset;
-
-    		  if (temp_count == 0) {
-    			  // Prefill so the sparkline is immediately fully drawn (flat line)
-    			  Spark_Fill(temp_hist, &temp_head, &temp_count, v);
-    		  }
-
-    	      Spark_Push(temp_hist, &temp_head, &temp_count, v);
-    	  }
 
           switch (interface_state) {
 
@@ -1312,15 +1322,8 @@ int main(void)
           case PRESSURE: {
         	  char pressure_display_string[37];
         	  char altitude_display_string[37];
-        	  float_t pressure;
 
-        	  if (LPS22HH_PRESS_GetPressure(&lps22hh, &pressure) == LPS22HH_OK) {
-        		  if (press_count == 0) {
-        		        // Prefill so the sparkline is immediately fully drawn (flat line)
-        		        Spark_Fill(press_hist, &press_head, &press_count, pressure);
-        		  }
-
-        		  Spark_Push(press_hist, &press_head, &press_count, pressure);
+        	  if (pressure_retrieval == LPS22HH_OK) {
         	      char pressure_string[20];
         	      char altitude_string[20];
 
@@ -1364,29 +1367,17 @@ int main(void)
           }
 
           case TEMPERATURE: {
-        	  char temperature_display_string[38];
+        	  	  char temperature_display_string[38];
 
         	      char temperature_string[20];
-        	      ftoa(temperature_string, temperature + temperature_offset, 2);   // e.g. "23.45"
-
-        	      snprintf(temperature_display_string, sizeof(temperature_display_string),
-        	               "%s%cF", temperature_string, (char)DEGREE_CHAR);
-
-            	  if (STTS22H_TEMP_GetTemperature(&stts22h, &temperature) == STTS22H_OK) {
-            		  temperature = Celsius_To_Fahrenheit(temperature);
-            		  float v = temperature + temperature_offset;
-
-            		  if (temp_count == 0) {
-            			  // Prefill so the sparkline is immediately fully drawn (flat line)
-            			  Spark_Fill(temp_hist, &temp_head, &temp_count, v);
-            		  }
-
-            	      Spark_Push(temp_hist, &temp_head, &temp_count, v);
+            	  if (temperature_retrieval == STTS22H_OK) {
+					  ftoa(temperature_string, temperature, 2);
+					  snprintf(temperature_display_string, sizeof(temperature_display_string),
+							   "%s%cF", temperature_string, (char)DEGREE_CHAR);
             	  } else {
-        	      snprintf(temperature_display_string, sizeof(temperature_display_string),
-        	               "Temperature Failure");
+					  snprintf(temperature_display_string, sizeof(temperature_display_string),
+							   "Temperature Failure");
             	  }
-
 
               memset(displayBuffer, 0, sizeof(displayBuffer));
               ST7565_drawstring_anywhere_7x12(
