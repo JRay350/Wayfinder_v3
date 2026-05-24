@@ -692,22 +692,22 @@ void RTC_DisplayCalibrate(void)
         "Press."
     };
 
-    char vals[4][20]; // right-side strings (NO UNITS)
+    char vals[4][30]; // right-side strings (NO UNITS)
 
     // Build right-side strings
     {
         char tmp[20];
 
-        ftoa(tmp, temperature_offset, 2);
+        ftoa(tmp, temperature_offset, 1);
         snprintf(vals[0], sizeof(vals[0]), "%s%cF", tmp, (char)DEGREE_CHAR);
 
-        ftoa(tmp, magnetometer_offset, 2);
+        ftoa(tmp, magnetometer_offset, 1);
         snprintf(vals[1], sizeof(vals[1]), "%s%c ", tmp, (char)DEGREE_CHAR);
 
-        ftoa(tmp, accelerometer_offset, 2);
+        ftoa(tmp, accelerometer_offset, 1);
         snprintf(vals[2], sizeof(vals[2]), "%s%c ", tmp, (char)DEGREE_CHAR);
 
-        ftoa(tmp, pressure_offset, 2);
+        ftoa(tmp, pressure_offset, 1);
         snprintf(vals[3], sizeof(vals[3]), "%shPa", tmp);
     }
 
@@ -1024,24 +1024,31 @@ void Draw_Incline(float incline_deg)
 // Example: ftoa(buf, 3.14159f, 3) → "3.142"
 void ftoa(char *buf, float value, int decimals)
 {
+    if (decimals < 0) {
+        decimals = 0;
+    }
+
     // Handle negative numbers
     if (value < 0) {
         *buf++ = '-';
         value = -value;
     }
 
-    // Extract integer part
-    int int_part = (int)value;
-
-    // Extract fractional part
-    float remainder = value - (float)int_part;
-
     // Scale fractional part
     int scale = 1;
     for (int i = 0; i < decimals; i++)
         scale *= 10;
 
+    // Extract integer and fractional parts after scale is known so we can
+    // carry overflow from rounding into the integer part.
+    int int_part = (int)value;
+    float remainder = value - (float)int_part;
     int frac_part = (int)(remainder * scale + 0.5f);  // round correctly
+
+    if (frac_part >= scale) {
+        int_part++;
+        frac_part -= scale;
+    }
 
     // Convert integer part
     sprintf(buf, "%d", int_part);   // uses ONLY %d → no float printf
@@ -1269,6 +1276,20 @@ int main(void)
       if (ui_dirty) {
           ui_dirty = false;
 
+    	  float temperature;
+
+    	  if (STTS22H_TEMP_GetTemperature(&stts22h, &temperature) == STTS22H_OK) {
+    		  temperature = Celsius_To_Fahrenheit(temperature);
+    		  float v = temperature + temperature_offset;
+
+    		  if (temp_count == 0) {
+    			  // Prefill so the sparkline is immediately fully drawn (flat line)
+    			  Spark_Fill(temp_hist, &temp_head, &temp_count, v);
+    		  }
+
+    	      Spark_Push(temp_hist, &temp_head, &temp_count, v);
+    	  }
+
           switch (interface_state) {
 
           case SET_TIME:
@@ -1344,27 +1365,27 @@ int main(void)
 
           case TEMPERATURE: {
         	  char temperature_display_string[38];
-        	  float temperature;
 
-        	  if (STTS22H_TEMP_GetTemperature(&stts22h, &temperature) == STTS22H_OK) {
-        		  temperature = Celsius_To_Fahrenheit(temperature);
-        		  float v = temperature + temperature_offset;
-
-        		  if (temp_count == 0) {
-        			  // Prefill so the sparkline is immediately fully drawn (flat line)
-        			  Spark_Fill(temp_hist, &temp_head, &temp_count, v);
-        		  }
-
-        	      Spark_Push(temp_hist, &temp_head, &temp_count, v);
         	      char temperature_string[20];
         	      ftoa(temperature_string, temperature + temperature_offset, 2);   // e.g. "23.45"
 
         	      snprintf(temperature_display_string, sizeof(temperature_display_string),
         	               "%s%cF", temperature_string, (char)DEGREE_CHAR);
-        	  } else {
+
+            	  if (STTS22H_TEMP_GetTemperature(&stts22h, &temperature) == STTS22H_OK) {
+            		  temperature = Celsius_To_Fahrenheit(temperature);
+            		  float v = temperature + temperature_offset;
+
+            		  if (temp_count == 0) {
+            			  // Prefill so the sparkline is immediately fully drawn (flat line)
+            			  Spark_Fill(temp_hist, &temp_head, &temp_count, v);
+            		  }
+
+            	      Spark_Push(temp_hist, &temp_head, &temp_count, v);
+            	  } else {
         	      snprintf(temperature_display_string, sizeof(temperature_display_string),
         	               "Temperature Failure");
-        	  }
+            	  }
 
 
               memset(displayBuffer, 0, sizeof(displayBuffer));
