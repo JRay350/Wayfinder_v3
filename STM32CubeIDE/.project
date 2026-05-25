@@ -127,6 +127,16 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Drivers/STM32L0xx_HAL_Driver/Src/stm32l0xx_hal_spi.c</locationURI>
 		</link>
 		<link>
+			<name>Drivers/STM32L0xx_HAL_Driver/stm32l0xx_hal_tim.c</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/Drivers/STM32L0xx_HAL_Driver/Src/stm32l0xx_hal_tim.c</locationURI>
+		</link>
+		<link>
+			<name>Drivers/STM32L0xx_HAL_Driver/stm32l0xx_hal_tim_ex.c</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/Drivers/STM32L0xx_HAL_Driver/Src/stm32l0xx_hal_tim_ex.c</locationURI>
+		</link>
+		<link>
 			<name>Application/User/Core/main.c</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Core/Src/main.c</locationURI>

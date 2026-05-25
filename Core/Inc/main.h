@@ -56,7 +56,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-#define BTN_DEBOUNCE_MS 115
+#define BTN_DEBOUNCE_MS 200
 #define SHAKE_POLL_MS 20
 #define AUTO_TIMEOUT_MS 75000
 

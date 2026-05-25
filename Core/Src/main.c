@@ -86,6 +86,8 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 
+TIM_HandleTypeDef htim2;
+
 /* USER CODE BEGIN PV */
 static const float mag_bias[3] = {
 	132.30558640063234,
@@ -131,6 +133,9 @@ volatile bool ui_dirty = true;
 volatile bool edit_time_dirty = false;
 volatile bool blink = false;
 
+static volatile bool stopwatch_running = false;
+static volatile uint32_t stopwatch_elapsed_seconds = 0;
+
 volatile CalibrationEditField_t calibration_field = TEMPERATURE_FIELD;
 
 float_t temperature_offset = 0.0;
@@ -172,6 +177,7 @@ static void MX_I2C2_Init(void);
 static void MX_RTC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 static bool is_leap_year(uint16_t year);
 static uint8_t days_in_month(uint8_t month, uint16_t year);
@@ -185,6 +191,9 @@ void EnterSetTimeMode(void);
 void RTC_GetDateTime(DateTime_t *dt);
 HAL_StatusTypeDef RTC_CommitDateTime(const DateTime_t *dt);
 void RTC_DisplayDateTime(DateTime_t *dt);
+static void Stopwatch_DisplayTime(void);
+static void Stopwatch_ToggleRunning(void);
+static void Stopwatch_Clear(void);
 void RTC_DisplayEditDateTime(void);
 void RTC_DisplayCalibrate(void);
 void NextTimeField(void);
@@ -558,6 +567,54 @@ void RTC_DisplayDateTime(DateTime_t *dt)
     ST7565_drawstring_anywhere_8x40(time_x, time_y, time_str);
     ST7565_drawstring_anywhere_8x13(weekday_x, weekday_y, weekday_str);
     ST7565_drawstring_anywhere_8x13(date_x, date_y, date_str);
+}
+
+static void Stopwatch_DisplayTime(void)
+{
+    char time_str[16];
+    uint32_t elapsed = stopwatch_elapsed_seconds;
+    uint32_t hours = elapsed / 3600u;
+    uint32_t minutes = (elapsed / 60u) % 60u;
+    uint32_t seconds = elapsed % 60u;
+
+    snprintf(time_str, sizeof(time_str), "%02lu:%02lu:%02lu",
+             (unsigned long)hours,
+             (unsigned long)minutes,
+             (unsigned long)seconds);
+
+    memset(displayBuffer, 0, sizeof(displayBuffer));
+
+    uint16_t time_w = (uint16_t)strlen(time_str) * FONT8X40_STEP;
+    uint8_t time_x = (time_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - time_w) / 2u) : 0u;
+    uint8_t time_y = (LCD_HEIGHT > FONT8X40_H)
+                   ? (uint8_t)((LCD_HEIGHT - FONT8X40_H) / 2u)
+                   : 0u;
+
+    ST7565_drawstring_anywhere_8x40(time_x, time_y, time_str);
+}
+
+static void Stopwatch_ToggleRunning(void)
+{
+    if (stopwatch_running) {
+        if (HAL_TIM_Base_Stop_IT(&htim2) == HAL_OK) {
+            stopwatch_running = false;
+        }
+    } else {
+        __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+        if (HAL_TIM_Base_Start_IT(&htim2) == HAL_OK) {
+            stopwatch_running = true;
+        }
+    }
+
+    ui_dirty = true;
+}
+
+static void Stopwatch_Clear(void)
+{
+    __HAL_TIM_SET_COUNTER(&htim2, 0u);
+    __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+    stopwatch_elapsed_seconds = 0u;
+    ui_dirty = true;
 }
 
 void RTC_DisplayEditDateTime(void)
@@ -1146,6 +1203,7 @@ int main(void)
   MX_RTC_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   // MC6470 Init
@@ -1321,6 +1379,11 @@ int main(void)
               updateDisplay();
               break;
           }
+
+          case STOPWATCH:
+              Stopwatch_DisplayTime();
+              updateDisplay();
+              break;
 
           case PRESSURE: {
         	  char pressure_display_string[37];
@@ -1809,6 +1872,51 @@ static void MX_SPI2_Init(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 999;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -1885,6 +1993,17 @@ void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc) {
 	rtc_tick_flag = true;
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM2 && stopwatch_running) {
+        stopwatch_elapsed_seconds++;
+
+        if (interface_state == STOPWATCH) {
+            ui_dirty = true;
+        }
+    }
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     uint32_t now = HAL_GetTick(); // SysTick ms tick (HAL provides this)
@@ -1912,7 +2031,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
                 ui_dirty = true;
             	break;
             case CALIBRATION:  interface_state = TIME; break;
-            case STOPWATCH: break; // ON/OFF
+            case STOPWATCH:
+                power_button_flag = true;
+                HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+                HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+                break; // ON/OFF
             default: power_button_flag = true; HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET); break;
         }
 
@@ -1946,7 +2069,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             case INCLINE:  interface_state = COMPASS; break;
             case COMPASS:  interface_state = TEMPERATURE; break;
             case TEMPERATURE: interface_state = PRESSURE; break;
-            case STOPWATCH: break; // START/STOP functionality
+            case STOPWATCH: Stopwatch_ToggleRunning(); break; // START/STOP functionality
             default: break;
         }
 
@@ -1979,7 +2102,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         switch (interface_state) {
             case SET_TIME:     NextTimeField(); break;
             case CALIBRATION:  NextCalibrationField(); break;
-            case STOPWATCH:    break; // Clear Stopwatch
+            case STOPWATCH:    Stopwatch_Clear(); break; // Clear Stopwatch
             default:
                 interface_state = SET_TIME;
                 EnterSetTimeMode();
@@ -2016,9 +2139,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         switch (interface_state) {
             case SET_TIME:     DecrementTime(); break;
             case CALIBRATION:  AdjustOffset(-0.1); break;
-            case STOPWATCH: interface_state = TIME; break;
+            case STOPWATCH: interface_state = TIME; ui_dirty = true; break;
             default:
-            	interface_state = STOPWATCH;
+                interface_state = STOPWATCH;
+                ui_dirty = true;
             	break;
         }
 
