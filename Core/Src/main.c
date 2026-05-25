@@ -1241,7 +1241,8 @@ int main(void)
   isDisplayOn = false;
 
   static uint32_t last_shake_poll_ms = 0;
-  static uint32_t last_shake_toggle_ms = 0;
+  static uint32_t last_shake_motion_ms = 0;
+  static bool shake_armed = true;
 
   /* USER CODE END 2 */
 
@@ -1549,25 +1550,34 @@ int main(void)
              {
                  float delta = ComputeMotionDelta(ax, ay, az);
 
-                 if (delta > 7.5) {
-                	 if (interface_state == OFF) {
-                         ST7565_on();
-                         isDisplayOn = true;
-                         interface_state = TIME;
-                         UpdateLastActivityTime();
-                         ui_dirty = true;
-                         prev_valid = false; // reset motion baseline
-                	 } else {
-                		 ST7565_off();
-                		 isDisplayOn = false;
-                		 interface_state = OFF;
-                         UpdateLastActivityTime();
-                         ui_dirty = false;
-                         prev_valid = false;
-                         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-                         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-                	 }
+                 if (delta > SHAKE_THRESHOLD) {
+                     last_shake_motion_ms = now;
 
+                     if (shake_armed) {
+                         shake_armed = false;
+
+                         if (interface_state == OFF) {
+                             ST7565_on();
+                             isDisplayOn = true;
+                             interface_state = TIME;
+                             UpdateLastActivityTime();
+                             ui_dirty = true;
+                         } else {
+                             ST7565_off();
+                             isDisplayOn = false;
+                             interface_state = OFF;
+                             UpdateLastActivityTime();
+                             ui_dirty = false;
+                             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+                             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+                         }
+
+                         // Do not let residual samples from this shake toggle back.
+                         prev_valid = false;
+                     }
+                 } else if (!shake_armed &&
+                            (now - last_shake_motion_ms) >= SHAKE_REARM_MS) {
+                     shake_armed = true;
                  }
              }
          }

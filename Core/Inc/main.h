@@ -58,6 +58,8 @@ extern "C" {
 /* USER CODE BEGIN EM */
 #define BTN_DEBOUNCE_MS 200
 #define SHAKE_POLL_MS 20
+#define SHAKE_REARM_MS 500
+#define SHAKE_THRESHOLD 7.5f
 #define AUTO_TIMEOUT_MS 75000
 
 #define VREFINT_CAL ((uint16_t*) (0x1FF80078UL))
