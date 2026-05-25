@@ -46,6 +46,7 @@ typedef enum {
 	INCLINE,
 	PRESSURE,
 	TEMPERATURE,
+	STOPWATCH,
 } Interface_State_t;
 
 typedef enum {
@@ -1269,6 +1270,8 @@ int main(void)
               prev_state = interface_state;
               interface_state = OFF;
               ui_dirty = false;
+              HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+              HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
           }
       }
 
@@ -1498,6 +1501,8 @@ int main(void)
                          UpdateLastActivityTime();
                          ui_dirty = false;
                          prev_valid = false;
+                         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+                         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
                 	 }
 
                  }
@@ -1899,6 +1904,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
+        switch (interface_state) {
+            case SET_TIME:
+                RTC_CommitDateTime(&edit_time);
+                edit_time_dirty = false;
+                interface_state = TIME;
+                ui_dirty = true;
+            	break;
+            case CALIBRATION:  interface_state = TIME; break;
+            case STOPWATCH: break; // ON/OFF
+            default: power_button_flag = true; HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET); break;
+        }
+
+        /* OLD STUFF
         if (interface_state == SET_TIME) {
             RTC_CommitDateTime(&edit_time);
             edit_time_dirty = false;
@@ -1909,7 +1927,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             ui_dirty = true;
         } else {
             power_button_flag = true;
-        }
+        }*/
     }
     else if (GPIO_Pin == GPIO_PIN_9) { // PB9
         if ((uint32_t)(now - last_pb9_ms) < BTN_DEBOUNCE_MS) return;
@@ -1919,6 +1937,20 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
         // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
+
+        switch (interface_state) {
+            case SET_TIME:     IncrementTime(); break;
+            case CALIBRATION:  AdjustOffset(0.1); break;
+            case TIME: interface_state = PRESSURE; break;
+            case PRESSURE: interface_state = INCLINE; break;
+            case INCLINE:  interface_state = COMPASS; break;
+            case COMPASS:  interface_state = TEMPERATURE; break;
+            case TEMPERATURE: interface_state = PRESSURE; break;
+            case STOPWATCH: break; // START/STOP functionality
+            default: break;
+        }
+
+        /* Old Stuff
 
         if (interface_state == SET_TIME) {
             IncrementTime();
@@ -1933,7 +1965,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         } else if (interface_state == TIME) {
             interface_state = COMPASS;
 
-        }
+        }*/
     }
     else if (GPIO_Pin == GPIO_PIN_8) { // PB8
         if ((uint32_t)(now - last_pb8_ms) < BTN_DEBOUNCE_MS) return;
@@ -1944,6 +1976,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
+        switch (interface_state) {
+            case SET_TIME:     NextTimeField(); break;
+            case CALIBRATION:  NextCalibrationField(); break;
+            case STOPWATCH:    break; // Clear Stopwatch
+            default:
+                interface_state = SET_TIME;
+                EnterSetTimeMode();
+                ui_dirty = true;
+            	break;
+        }
+
+        /* Old Stuff
         if (interface_state == SET_TIME) {
             DecrementTime();
         } else if (interface_state == CALIBRATION) {
@@ -1958,7 +2002,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         } else if (interface_state == TIME) {
             interface_state = TEMPERATURE;
             prev_state = TIME;
-        }
+        } */
     }
     else if (GPIO_Pin == GPIO_PIN_3) { // PB3
         if ((uint32_t)(now - last_pb3_ms) < BTN_DEBOUNCE_MS) return;
@@ -1969,6 +2013,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
+        switch (interface_state) {
+            case SET_TIME:     DecrementTime(); break;
+            case CALIBRATION:  AdjustOffset(-0.1); break;
+            case STOPWATCH: interface_state = TIME; break;
+            default:
+            	interface_state = STOPWATCH;
+            	break;
+        }
+
+        /* Old Stuff
         switch (interface_state) {
             case SET_TIME:     NextTimeField(); break;
             case COMPASS:      interface_state = TIME; break;
@@ -1985,7 +2039,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
                 break;
             case CALIBRATION:  NextCalibrationField(); break;
             default: break;
-        }
+        } */
     }
     else if (GPIO_Pin == GPIO_PIN_10) { // PA10
         if ((uint32_t)(now - last_pa10_ms) < BTN_DEBOUNCE_MS) return;
@@ -1993,9 +2047,24 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
         if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) != GPIO_PIN_RESET) return;
 
+        switch (interface_state) {
+            case SET_TIME:
+				RTC_CommitDateTime(&edit_time);
+				edit_time_dirty = false;
+				ui_dirty = true;
+				interface_state = CALIBRATION;
+				break;
+            case CALIBRATION:  interface_state = SET_TIME; EnterSetTimeMode(); ui_dirty = true; break;
+            case TIME: HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1); HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15); break;
+            case STOPWATCH: HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1); HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15); break;
+            default: interface_state = TIME; break;
+        }
+
+        /* Old stuff
     	// Toggle the display backlight
     	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
     	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+    	*/
     }
 }
 

@@ -56,9 +56,9 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-#define BTN_DEBOUNCE_MS 45
+#define BTN_DEBOUNCE_MS 115
 #define SHAKE_POLL_MS 20
-#define AUTO_TIMEOUT_MS 45000
+#define AUTO_TIMEOUT_MS 75000
 
 #define VREFINT_CAL ((uint16_t*) (0x1FF80078UL))
 
