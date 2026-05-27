@@ -104,10 +104,8 @@ static const float mag_softiron[3][3] = {
 static float prev_ax = 0, prev_ay = 0, prev_az = 0;
 static bool prev_valid = false;
 
-// Used for auto-sleep functionality
 volatile uint32_t last_activity_ms = 0;
 
-// Used for debounce timings
 static volatile uint32_t last_pa0_ms = 0;
 static volatile uint32_t last_pa10_ms = 0;
 static volatile uint32_t last_pb9_ms = 0;
@@ -144,8 +142,8 @@ float_t accelerometer_offset = 0.0;
 float_t pressure_offset = 0.0;
 
 static float_t press_hist[SPARK_W];
-static uint8_t press_head = 0;   // next write index
-static uint8_t press_count = 0;  // how many valid samples (<= SPARK_W)
+static uint8_t press_head = 0;
+static uint8_t press_count = 0;
 
 static float_t temp_hist[SPARK_W];
 static uint8_t temp_head = 0;
@@ -269,7 +267,6 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
     if (draw_box) ST7565_drawrect(x, y, w, h, BLACK);
     if (count < 2) return;
 
-    // 1) Compute actual data min/max (for expand-only logic)
     float data_min =  1e30f;
     float data_max = -1e30f;
 
@@ -280,14 +277,11 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
         if (v > data_max) data_max = v;
     }
 
-    // 2) Pick the right standard range and persistent scale vars
     int16_t std_min_i16, std_max_i16;
     int16_t *scale_min_i16, *scale_max_i16;
 
-    // Expand margin and relax step are in *your units*
-    // (keep small; you can tune per-state)
     float expand_margin = 0.0f;
-    int16_t relax_step_i16 = 0; // 0 = don't relax toward standard
+    int16_t relax_step_i16 = 0;
 
     switch (state) {
         case PRESSURE:
@@ -296,8 +290,8 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
             scale_min_i16 = &press_scale_min;
             scale_max_i16 = &press_scale_max;
 
-            expand_margin = 5.0f;       // e.g. 5 units of whatever your pressure units are
-            relax_step_i16 = 0;         // set to 1..5 if you want it to drift back
+            expand_margin = 5.0f;
+            relax_step_i16 = 0;
             break;
 
         case TEMPERATURE:
@@ -306,23 +300,21 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
             scale_min_i16 = &temp_scale_min;
             scale_max_i16 = &temp_scale_max;
 
-            expand_margin = 1.0f;       // 1 degree margin
+            expand_margin = 1.0f;
             relax_step_i16 = 0;
             break;
 
-        default: // INCLINE
+        default:
             std_min_i16   = 0;
             std_max_i16   = 360;
             scale_min_i16 = &incline_scale_min;
             scale_max_i16 = &incline_scale_max;
 
-            expand_margin = 2.0f;       // a couple degrees
+            expand_margin = 2.0f;
             relax_step_i16 = 0;
             break;
     }
 
-    // 3) Optional relax back toward standard range
-    // (Only matters if you allow expansion AND later want to shrink back)
     if (relax_step_i16 > 0) {
         if (*scale_min_i16 < std_min_i16) {
             int16_t next = (int16_t)(*scale_min_i16 + relax_step_i16);
@@ -340,28 +332,8 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
             *scale_max_i16 = (next < std_max_i16) ? std_max_i16 : next;
         }
     } else {
-        // If you want strictly fixed range, just force:
-        // *scale_min_i16 = std_min_i16;
-        // *scale_max_i16 = std_max_i16;
-        //
-        // If you want "fixed-unless-exceeded", leave them as-is.
     }
 
-    // 4) Expand-only if exceeded (using data_min/data_max)
-    // NOTE: only expand outward; never shrink here.
-    /*
-    if (data_min < (float)(*scale_min_i16)) {
-        float new_min = data_min - expand_margin;
-        if (new_min < -32768.0f) new_min = -32768.0f;
-        *scale_min_i16 = (int16_t)new_min;
-    }
-    if (data_max > (float)(*scale_max_i16)) {
-        float new_max = data_max + expand_margin;
-        if (new_max > 32767.0f) new_max = 32767.0f;
-        *scale_max_i16 = (int16_t)new_max;
-    }
-*/
-    // 5) Use persistent scales for plotting (convert to float)
     float vmin = (float)(*scale_min_i16);
     float vmax = (float)(*scale_max_i16);
 
@@ -373,7 +345,6 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
 
     if (xstep == 0) xstep = 1;
 
-    // How many points can fit so that the LAST point is at x+(w-1)
     uint8_t max_points = (uint8_t)(((w - 1) / xstep) + 1);
     if (max_points < 2) return;
 
@@ -381,11 +352,9 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
     if (n > max_points) n = max_points;
     if (n < 2) return;
 
-    // compute start_x in signed math to avoid uint8 underflow
-    int16_t x_span = (int16_t)(n - 1) * (int16_t)xstep;     // 0..(w-1)
+    int16_t x_span = (int16_t)(n - 1) * (int16_t)xstep;
     int16_t start_x_i16 = (int16_t)x + ((int16_t)(w - 1) - x_span);
 
-    // clamp just in case
     if (start_x_i16 < (int16_t)x) start_x_i16 = (int16_t)x;
     uint8_t start_x = (uint8_t)start_x_i16;
 
@@ -394,18 +363,16 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
         uint8_t idx = (uint8_t)((head + SPARK_W - count + src_i) % SPARK_W);
         float v = hist[idx];
 
-        // Clamp to range so it always stays inside the box
         if (v < vmin) v = vmin;
         if (v > vmax) v = vmax;
 
-        float t = (v - vmin) / span; // 0..1
+        float t = (v - vmin) / span;
 
         int16_t yy = (int16_t)((float)y + t * (float)(h - 1));
 
         uint8_t px = (uint8_t)(start_x + (uint8_t)(i * xstep));
         uint8_t py = (yy < y) ? y : (yy >= (y + h) ? (uint8_t)(y + h - 1) : (uint8_t)yy);
 
-        // Clamp px before drawing
         if (px < x) px = x;
         uint8_t right = (uint8_t)(x + w - 1);
         if (px > right) px = right;
@@ -417,9 +384,7 @@ static void Spark_DrawLine(uint8_t x, uint8_t y, uint8_t w, uint8_t h, Interface
     }
 }
 
-// Use Zeller's Congruence algorithm
 static uint8_t CalculateWeekday(uint8_t day, uint8_t month, uint16_t year) {
-	// March is month 3, April is 4... Jan/Feb are treated as months 13 and 14 of prev year
 	if (month < 3) {
 		month += 12;
 		year -= 1;
@@ -428,17 +393,15 @@ static uint8_t CalculateWeekday(uint8_t day, uint8_t month, uint16_t year) {
 	uint16_t K = year % 100;
 	uint16_t J = year / 100;
 
-	// h = 0 -> Saturday, h = 6 -> Friday
 	uint8_t h = (day + (13 * (month + 1)) / 5 + K + K/4 + J/4 + 5*J) % 7;
 
-	// Convert to h = 1 -> Monday, h = 7 -> Sunday
 	uint8_t weekday = ((h + 5) % 7) + 1;
 	return weekday;
 }
 
 void EnterSetTimeMode(void)
 {
-    RTC_GetDateTime(&edit_time);   // load current RTC time
+    RTC_GetDateTime(&edit_time);
     time_edit_field = EDIT_MONTH;
     ui_dirty = true;
 }
@@ -515,33 +478,28 @@ void RTC_DisplayDateTime(DateTime_t *dt)
 
     memset(displayBuffer, 0, sizeof(displayBuffer));
 
-    /* ---- Font metrics ---- */
     const uint8_t TIME_FONT_H    = 28;
     const uint8_t TIME_FONT_STEP = 12;
 
     const uint8_t SIDE_FONT_H    = FONT8X13_H;
     const uint8_t SIDE_FONT_STEP = FONT8X13_STEP;
 
-    /* ---- Measured widths ---- */
     uint16_t time_w    = (uint16_t)strlen(time_str)    * TIME_FONT_STEP;
     uint16_t weekday_w = (uint16_t)strlen(weekday_str) * SIDE_FONT_STEP;
     uint16_t date_w    = (uint16_t)strlen(date_str)    * SIDE_FONT_STEP;
 
     uint16_t side_w = (weekday_w > date_w) ? weekday_w : date_w;
 
-    /* ---- Layout tuning ---- */
     uint8_t left_margin = 4;
     uint8_t right_margin = 8;
     uint8_t col_gap = 16;
     uint8_t row_gap = 4;
 
-    /* ---- Left column: time ---- */
     uint8_t time_x = left_margin;
     uint8_t time_y = (LCD_HEIGHT > TIME_FONT_H)
                    ? (uint8_t)((LCD_HEIGHT - TIME_FONT_H) / 2)
                    : 0;
 
-    /* ---- Right column: pinned to right side ---- */
     uint8_t right_x = (LCD_WIDTH > (right_margin + side_w))
                     ? (uint8_t)(LCD_WIDTH - right_margin - side_w)
                     : 0;
@@ -551,19 +509,16 @@ void RTC_DisplayDateTime(DateTime_t *dt)
                     ? (uint8_t)((LCD_HEIGHT - right_h) / 2)
                     : 0;
 
-    /* ---- Safety: if columns collide, move right block just after time ---- */
     if ((uint16_t)(time_x + time_w + col_gap) > right_x) {
         right_x = (uint8_t)(time_x + time_w + col_gap);
     }
 
-    /* ---- Center weekday/date within right column ---- */
     uint8_t weekday_x = (uint8_t)(right_x + (side_w - weekday_w) / 2);
     uint8_t date_x    = (uint8_t)(right_x + (side_w - date_w) / 2);
 
     uint8_t weekday_y = right_y;
     uint8_t date_y    = (uint8_t)(right_y + SIDE_FONT_H + row_gap);
 
-    /* ---- Draw ---- */
     ST7565_drawstring_anywhere_8x40(time_x, time_y, time_str);
     ST7565_drawstring_anywhere_8x13(weekday_x, weekday_y, weekday_str);
     ST7565_drawstring_anywhere_8x13(date_x, date_y, date_str);
@@ -636,7 +591,6 @@ void RTC_DisplayEditDateTime(void)
 
     memset(displayBuffer, 0, sizeof(displayBuffer));
 
-    /* ---------- Centering (7x12 for ALL text) ---------- */
     uint16_t prompt_w = (uint16_t)strlen(prompt)   * FONT7X12_STEP;
     uint16_t time_w   = (uint16_t)strlen(time_str) * FONT7X12_STEP;
     uint16_t date_w   = (uint16_t)strlen(date_str) * FONT7X12_STEP;
@@ -645,9 +599,8 @@ void RTC_DisplayEditDateTime(void)
     uint8_t time_x   = (time_w   < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - time_w)   / 2) : 0;
     uint8_t date_x   = (date_w   < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - date_w)   / 2) : 0;
 
-    /* ---------- Spacing control ---------- */
-    uint8_t prompt_gap = 10;  // visual gap between title and time
-    uint8_t line_gap   = 6;   // gap between time and date
+    uint8_t prompt_gap = 10;
+    uint8_t line_gap   = 6;
 
     uint8_t block_h = (uint8_t)(
         FONT7X12_H + prompt_gap +
@@ -655,8 +608,6 @@ void RTC_DisplayEditDateTime(void)
         FONT7X12_H
     );
 
-    /* ---------- Inverted Y layout ---------- */
-    // Smaller y = visually LOWER
     uint8_t bottom_y = (LCD_HEIGHT > block_h)
                          ? (uint8_t)((LCD_HEIGHT - block_h) / 2)
                          : 0;
@@ -665,16 +616,13 @@ void RTC_DisplayEditDateTime(void)
     uint8_t date_y   = (uint8_t)(time_y + FONT7X12_H + line_gap);
     uint8_t prompt_y = (uint8_t)(date_y + FONT7X12_H + prompt_gap);
 
-    /* ---------- Draw ---------- */
     ST7565_drawstring_anywhere_7x12(prompt_x, prompt_y, prompt);
     ST7565_drawstring_anywhere_7x12(time_x,   time_y,   time_str);
     ST7565_drawstring_anywhere_7x12(date_x,   date_y,   date_str);
 
-    /* ---------- Underline active field ---------- */
     if (blink) {
         uint8_t ul_x = 0, ul_y = 0, ul_w = 0;
 
-        // Keep original behavior: visually DOWN = SMALLER y
         const uint8_t UL_BELOW_BASELINE = 1;
 
         uint8_t underline_y_time =
@@ -750,9 +698,8 @@ void RTC_DisplayCalibrate(void)
         "Press."
     };
 
-    char vals[4][30]; // right-side strings (NO UNITS)
+    char vals[4][30];
 
-    // Build right-side strings
     {
         char tmp[20];
 
@@ -771,8 +718,6 @@ void RTC_DisplayCalibrate(void)
 
     memset(displayBuffer, 0, sizeof(displayBuffer));
 
-    /* ---------- Layout ---------- */
-    // Title SAME size as menu rows
     const uint8_t TITLE_H   = FONT7X12_H;
     const uint8_t TITLE_STEP= FONT7X12_STEP;
 
@@ -782,17 +727,13 @@ void RTC_DisplayCalibrate(void)
     const uint8_t LEFT_MARGIN  = 0;
     const uint8_t RIGHT_MARGIN = 30;
 
-    const uint8_t split_x = 72; // prevent value/label collision
+    const uint8_t split_x = 72;
 
-    // Title centered (7x12)
     uint16_t title_w = (uint16_t)strlen(title) * (uint16_t)TITLE_STEP;
     uint8_t  title_x = (title_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - title_w) / 2) : 0;
 
-    // --------- IMPORTANT: your Y is visually inverted ---------
-    // Bigger y appears higher on the screen.
     const uint8_t top_gap = 2;
 
-    // Choose a row gap that fits
     uint8_t row_gap = 2;
     {
         uint8_t needed = (uint8_t)(TITLE_H + top_gap + 4 * ROW_H);
@@ -803,16 +744,13 @@ void RTC_DisplayCalibrate(void)
         }
     }
 
-    // Title at top visually (large y in your coords)
     int16_t title_y_i16 = (int16_t)LCD_HEIGHT - (int16_t)TITLE_H;
     if (title_y_i16 < 0) title_y_i16 = 0;
     uint8_t title_y = (uint8_t)title_y_i16;
 
-    // First menu row just below title visually => smaller y
     int16_t row0_y_i16 = (int16_t)title_y - (int16_t)top_gap - (int16_t)ROW_H;
     if (row0_y_i16 < 0) row0_y_i16 = 0;
 
-    // Rows go downward visually => keep subtracting (smaller y)
     uint8_t row_y[4];
     for (uint8_t i = 0; i < 4; i++) {
         int16_t yi = row0_y_i16 - (int16_t)i * (int16_t)(ROW_H + row_gap);
@@ -820,7 +758,6 @@ void RTC_DisplayCalibrate(void)
         row_y[i] = (uint8_t)yi;
     }
 
-    /* ---------- Draw ---------- */
     ST7565_drawstring_anywhere_7x12(title_x, title_y, title);
 
     for (uint8_t i = 0; i < 4; i++) {
@@ -833,7 +770,6 @@ void RTC_DisplayCalibrate(void)
         ST7565_drawstring_anywhere_7x12((uint8_t)vx, row_y[i], vals[i]);
     }
 
-    /* ---------- Underline selected VALUE (your original behavior) ---------- */
     if (blink) {
         uint8_t idx = (calibration_field < 4) ? calibration_field : 0;
 
@@ -979,59 +915,6 @@ void NextCalibrationField(void) {
 
 void Draw_Compass(float heading_deg)
 {
-    // --- Layout: compass above, text below ---
-    const uint8_t text_h   = 14;  // 7x12 font (12px) + spacing
-    const uint8_t top_h    = (LCD_HEIGHT > text_h) ? (LCD_HEIGHT - text_h) : LCD_HEIGHT;
-
-    // Center compass in the top region
-    const uint8_t cx = (uint8_t)(LCD_WIDTH / 2);
-    const uint8_t cy = (uint8_t)(top_h / 2);
-
-    // Radius must fit inside top region (and screen width)
-    uint8_t r = 15;
-    if (cy > 1 && r > (uint8_t)(cy - 1)) r = (uint8_t)(cy - 1);
-    // also avoid left/right clipping (very conservative)
-    if (cx > 1 && r > (uint8_t)(cx - 1)) r = (uint8_t)(cx - 1);
-
-    // Draw outer circle
-    ST7565_drawcircle(cx, cy, r, BLACK);
-
-    // Cardinal letters (assumes your stated Y-UP convention)
-    ST7565_drawchar_anywhere(cx - 2,        cy + r + 1,  'N');  // above
-    ST7565_drawchar_anywhere(cx + r + 3,    cy - 3,      'E');  // right
-    ST7565_drawchar_anywhere(cx - 2,        cy - r - 9,  'S');  // below
-    ST7565_drawchar_anywhere(cx - r - 9,    cy - 3,      'W');  // left
-
-    // Needle math (0° points North)
-    float angle = heading_deg * (3.14159265f / 180.0f);
-
-    float fx = (float)cx + (float)r * sinf(angle);
-    float fy = (float)cy + (float)r * cosf(angle);   // Y-UP as you wrote
-
-    uint8_t x1 = (uint8_t)(fx + 0.5f);
-    uint8_t y1 = (uint8_t)(fy + 0.5f);
-
-    ST7565_drawline(cx, cy, x1, y1, BLACK, 2);
-
-    // --- Heading text below the compass ---
-    char degree_string[8];
-    ftoa(degree_string, heading_deg, 1);
-
-    char buff[16];
-    snprintf(buff, sizeof(buff), "%s%c", degree_string, (char)DEGREE_CHAR);
-
-    // Center the 7x12 text on the bottom row area.
-    // 7px/char approx; adjust if your font differs.
-    uint8_t text_w = (uint8_t)(strlen(buff) * 7);
-    uint8_t tx = (text_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - text_w) / 2) : 0;
-    uint8_t ty = (uint8_t)(LCD_HEIGHT - 12); // last 12px tall band
-
-    ST7565_drawstring_anywhere_7x12(tx, ty, buff);
-}
-
-void Draw_Incline(float incline_deg)
-{
-    // --- Layout: indicator above, text below ---
     const uint8_t text_h   = 14;
     const uint8_t top_h    = (LCD_HEIGHT > text_h) ? (LCD_HEIGHT - text_h) : LCD_HEIGHT;
 
@@ -1042,20 +925,57 @@ void Draw_Incline(float incline_deg)
     if (cy > 1 && r > (uint8_t)(cy - 1)) r = (uint8_t)(cy - 1);
     if (cx > 1 && r > (uint8_t)(cx - 1)) r = (uint8_t)(cx - 1);
 
-    // Draw reference circle (same as compass)
     ST7565_drawcircle(cx, cy, r, BLACK);
 
-    // Draw horizontal reference line (0°)
+    ST7565_drawchar_anywhere(cx - 2,        cy + r + 1,  'N');
+    ST7565_drawchar_anywhere(cx + r + 3,    cy - 3,      'E');
+    ST7565_drawchar_anywhere(cx - 2,        cy - r - 9,  'S');
+    ST7565_drawchar_anywhere(cx - r - 9,    cy - 3,      'W');
+
+    float angle = heading_deg * (3.14159265f / 180.0f);
+
+    float fx = (float)cx + (float)r * sinf(angle);
+    float fy = (float)cy + (float)r * cosf(angle);
+
+    uint8_t x1 = (uint8_t)(fx + 0.5f);
+    uint8_t y1 = (uint8_t)(fy + 0.5f);
+
+    ST7565_drawline(cx, cy, x1, y1, BLACK, 2);
+
+    char degree_string[8];
+    ftoa(degree_string, heading_deg, 1);
+
+    char buff[16];
+    snprintf(buff, sizeof(buff), "%s%c", degree_string, (char)DEGREE_CHAR);
+
+    uint8_t text_w = (uint8_t)(strlen(buff) * 7);
+    uint8_t tx = (text_w < LCD_WIDTH) ? (uint8_t)((LCD_WIDTH - text_w) / 2) : 0;
+    uint8_t ty = (uint8_t)(LCD_HEIGHT - 12);
+
+    ST7565_drawstring_anywhere_7x12(tx, ty, buff);
+}
+
+void Draw_Incline(float incline_deg)
+{
+    const uint8_t text_h   = 14;
+    const uint8_t top_h    = (LCD_HEIGHT > text_h) ? (LCD_HEIGHT - text_h) : LCD_HEIGHT;
+
+    const uint8_t cx = (uint8_t)(LCD_WIDTH / 2);
+    const uint8_t cy = (uint8_t)(top_h / 2);
+
+    uint8_t r = 15;
+    if (cy > 1 && r > (uint8_t)(cy - 1)) r = (uint8_t)(cy - 1);
+    if (cx > 1 && r > (uint8_t)(cx - 1)) r = (uint8_t)(cx - 1);
+
+    ST7565_drawcircle(cx, cy, r, BLACK);
+
     ST7565_drawline(cx - r, cy, cx + r, cy, BLACK, 1);
 
-    // Clamp incline
     if (incline_deg < 0.0f)  incline_deg = 0.0f;
     if (incline_deg > 90.0f) incline_deg = 90.0f;
 
-    // Same math style as compass
     float angle = incline_deg * (3.14159265f / 180.0f);
 
-    // 0° = horizontal, 90° = vertical up
     float fx = (float)cx + (float)r * cosf(angle);
     float fy = (float)cy + (float)r * sinf(angle);
 
@@ -1064,7 +984,6 @@ void Draw_Incline(float incline_deg)
 
     ST7565_drawline(cx, cy, x1, y1, BLACK, 2);
 
-    // --- Incline text below ---
     char degree_string[8];
     ftoa(degree_string, incline_deg, 1);
 
@@ -1078,54 +997,44 @@ void Draw_Incline(float incline_deg)
     ST7565_drawstring_anywhere_7x12(tx, ty, buff);
 }
 
-// Convert float to string with fixed number of decimals
-// Example: ftoa(buf, 3.14159f, 3) → "3.142"
 void ftoa(char *buf, float value, int decimals)
 {
     if (decimals < 0) {
         decimals = 0;
     }
 
-    // Handle negative numbers
     if (value < 0) {
         *buf++ = '-';
         value = -value;
     }
 
-    // Scale fractional part
     int scale = 1;
     for (int i = 0; i < decimals; i++)
         scale *= 10;
 
-    // Extract integer and fractional parts after scale is known so we can
-    // carry overflow from rounding into the integer part.
     int int_part = (int)value;
     float remainder = value - (float)int_part;
-    int frac_part = (int)(remainder * scale + 0.5f);  // round correctly
+    int frac_part = (int)(remainder * scale + 0.5f);
 
     if (frac_part >= scale) {
         int_part++;
         frac_part -= scale;
     }
 
-    // Convert integer part
-    sprintf(buf, "%d", int_part);   // uses ONLY %d → no float printf
+    sprintf(buf, "%d", int_part);
 
-    // Move buffer to end
     while (*buf != '\0') buf++;
 
     if (decimals > 0) {
         *buf++ = '.';
 
-        // Zero padding for fractional part
         int pad = scale / 10;
         while (pad > 1 && frac_part < pad) {
             *buf++ = '0';
             pad /= 10;
         }
 
-        // Convert fractional part
-        sprintf(buf, "%d", frac_part);  // still only %d
+        sprintf(buf, "%d", frac_part);
     }
 }
 
@@ -1146,7 +1055,6 @@ static void UpdateLastActivityTime(void) {
 
 float ComputeMotionDelta(float ax, float ay, float az)
 {
-	// If taking sample for first time since device startup
     if (!prev_valid) {
         prev_ax = ax;
         prev_ay = ay;
@@ -1206,11 +1114,9 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  // MC6470 Init
   IMU_Init();
 
 
-  // LPS22HH Init
   const float_t lps22h_odr = 1.0f;
   int32_t lps22hh_status = LPS22HH_OK;
 
@@ -1222,7 +1128,6 @@ int main(void)
       if ((lps22hh_status = LPS22HH_PRESS_SetOutputDataRate(&lps22hh, lps22h_odr)) != LPS22HH_OK) break;
   } while (0);
 
-  // STTS22H Init
   const float_t stts22h_odr = 1.0f;
   int32_t stts22h_status = STTS22H_OK;
 
@@ -1233,7 +1138,6 @@ int main(void)
       if ((stts22h_status = STTS22H_TEMP_SetOutputDataRate(&stts22h, stts22h_odr)) != STTS22H_OK) break;
   } while (0);
 
-  // LCD Init
   ST7565_init();
   ST7565_command(CMD_DISPLAY_OFF);
   ST7565_clear();
@@ -1250,40 +1154,35 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /* ---------- Power button handling ---------- */
 	  if (power_button_flag) {
 	      power_button_flag = 0;
 
 	      if (interface_state == OFF) {
 	          interface_state = TIME;
-	          // Turn display on and go to a real screen
 	    	  ST7565_on();
 	    	  isDisplayOn = true;
 
 
 	          ui_dirty = true;
 	      } else {
-	          // Turn display off and enter OFF state
 	    	  ST7565_off();
 	    	  isDisplayOn = false;
 
-	          prev_state = interface_state;  // remember where we were
+	          prev_state = interface_state;
 	          interface_state = OFF;
-	          ui_dirty = false;              // no need to redraw while off
+	          ui_dirty = false;
 	      }
 	  }
 
-      /* ---------- 1 Hz tick handling (NO drawing here) ---------- */
       if (rtc_tick_flag) {
           rtc_tick_flag = 0;
 
           blink = !blink;
 
-          // Refresh screens that need periodic updates
           if (interface_state == TIME) {
-              ui_dirty = true;               // update time once per second
+              ui_dirty = true;
           } else if (interface_state == SET_TIME || interface_state == CALIBRATION) {
-              ui_dirty = true;               // blink underline/cursor
+              ui_dirty = true;
           }
           else if (interface_state == PRESSURE || interface_state == TEMPERATURE) ui_dirty = true;
       }
@@ -1295,13 +1194,12 @@ int main(void)
       uint32_t now = HAL_GetTick();
       if (interface_state == COMPASS)
       {
-          // initialize on first entry (or if it was 0)
           if (next_compass_ms == 0) next_compass_ms = now;
 
           if ((int32_t)(now - next_compass_ms) >= 0)
           {
               next_compass_ms += COMPASS_PERIOD_MS;
-              ui_dirty = true;  // triggers COMPASS redraw at ~20 Hz
+              ui_dirty = true;
           }
       } else if (interface_state == INCLINE) {
     	    if (next_incline_ms == 0) next_incline_ms = now;
@@ -1314,12 +1212,10 @@ int main(void)
       }
       else if (interface_state != OFF)
       {
-          // reset so when you re-enter COMPASS it updates immediately
           next_compass_ms = 0;
           next_incline_ms = 0;
       }
 
-      // Auto-sleep Check
       if (interface_state != OFF) {
           uint32_t current_time_ms = HAL_GetTick();
           if ((current_time_ms - last_activity_ms) >= AUTO_TIMEOUT_MS) {
@@ -1343,7 +1239,6 @@ int main(void)
 		  temperature = Celsius_To_Fahrenheit(temperature) + temperature_offset;
 
 		  if (temp_count == 0) {
-			  // Prefill so the sparkline is immediately fully drawn (flat line)
 			  Spark_Fill(temp_hist, &temp_head, &temp_count, temperature);
 		  }
 
@@ -1358,15 +1253,12 @@ int main(void)
 		  Spark_Push(press_hist, &press_head, &press_count, pressure);
 	  }
 
-      /* ---------- Draw only when dirty ---------- */
       if (ui_dirty) {
           ui_dirty = false;
 
           switch (interface_state) {
 
           case SET_TIME:
-              // RTC_DisplayEditDateTime() should only draw to displayBuffer.
-              // If you want blink control, have it use the global 'blink' flag.
               RTC_DisplayEditDateTime();
               updateDisplay();
               break;
@@ -1375,7 +1267,6 @@ int main(void)
               DateTime_t now;
               RTC_GetDateTime(&now);
 
-              // RTC_DisplayDateTime() should only draw to displayBuffer.
               RTC_DisplayDateTime(&now);
               updateDisplay();
               break;
@@ -1394,10 +1285,9 @@ int main(void)
         	      char pressure_string[20];
         	      char altitude_string[20];
 
-        	      // Calculate altitude
         	      float altitude_ft = Calculate_Altitude(pressure);
 
-        	      ftoa(pressure_string, pressure, 2); // e.g. "1013.25"
+                  ftoa(pressure_string, pressure, 2);
         	      ftoa(altitude_string, altitude_ft, 2);
 
         	      snprintf(pressure_display_string, sizeof(pressure_display_string),
@@ -1468,12 +1358,10 @@ int main(void)
               if (C6DOFIMU13_Accel_GetXYZ(&h6dof, &ax, &ay, &az) == HAL_OK &&
                   C6DOFIMU13_Mag_GetXYZ(&h6dof, &mx, &my, &mz) == HAL_OK)
               {
-                  // Remove hard iron bias
                   float x = mx - mag_bias[0];
                   float y = my - mag_bias[1];
                   float z = mz - mag_bias[2];
 
-                  // Apply soft iron correction matrix
                   float mx_c =
                       mag_softiron[0][0] * x +
                       mag_softiron[0][1] * y +
@@ -1489,14 +1377,12 @@ int main(void)
                       mag_softiron[2][1] * y +
                       mag_softiron[2][2] * z;
 
-                  // Heading from calibrated magnetometer
                   float heading_rad = atan2f(my_c, mx_c);
                   float heading_deg = heading_rad * (180.0f / 3.14159265f) + magnetometer_offset + 90.0;
 
                   if (heading_deg < 0.0f) heading_deg += 360.0f;
                   if (heading_deg >= 360.0f) heading_deg -= 360.0f;
 
-                  // Draw compass into displayBuffer only
                   Draw_Compass(heading_deg);
               }
               else
@@ -1540,7 +1426,6 @@ int main(void)
           }
       }
 
-      // Shake-To-Wake Functionality
       if ((now - last_shake_poll_ms) > SHAKE_POLL_MS)
          {
     	  	 last_shake_poll_ms = now;
@@ -1572,7 +1457,6 @@ int main(void)
                              HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
                          }
 
-                         // Do not let residual samples from this shake toggle back.
                          prev_valid = false;
                      }
                  } else if (!shake_armed &&
@@ -2016,21 +1900,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-    uint32_t now = HAL_GetTick(); // SysTick ms tick (HAL provides this)
+    uint32_t now = HAL_GetTick();
 
-    // If we're OFF, ignore everything except the power button (PA0)
     if (interface_state == OFF && GPIO_Pin != GPIO_PIN_0) {
         return;
     }
 
-    if (GPIO_Pin == GPIO_PIN_0) { // PA0
+    if (GPIO_Pin == GPIO_PIN_0) {
         if ((uint32_t)(now - last_pa0_ms) < BTN_DEBOUNCE_MS) return;
         last_pa0_ms = now;
 
-        // Optional: confirm it's actually still pressed (active-low)
         if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) != GPIO_PIN_RESET) return;
 
-        // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
         switch (interface_state) {
@@ -2045,30 +1926,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
                 power_button_flag = true;
                 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
                 HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-                break; // ON/OFF
+                break;
             default: power_button_flag = true; HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET); break;
         }
-
-        /* OLD STUFF
-        if (interface_state == SET_TIME) {
-            RTC_CommitDateTime(&edit_time);
-            edit_time_dirty = false;
-            interface_state = TIME;
-            ui_dirty = true;
-        } else if (interface_state == CALIBRATION) {
-            interface_state = prev_state;
-            ui_dirty = true;
-        } else {
-            power_button_flag = true;
-        }*/
     }
-    else if (GPIO_Pin == GPIO_PIN_9) { // PB9
+    else if (GPIO_Pin == GPIO_PIN_9) {
         if ((uint32_t)(now - last_pb9_ms) < BTN_DEBOUNCE_MS) return;
         last_pb9_ms = now;
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) != GPIO_PIN_RESET) return;
 
-        // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
         switch (interface_state) {
@@ -2079,71 +1946,35 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             case INCLINE:  interface_state = COMPASS; break;
             case COMPASS:  interface_state = TEMPERATURE; break;
             case TEMPERATURE: interface_state = PRESSURE; break;
-            case STOPWATCH: Stopwatch_ToggleRunning(); break; // START/STOP functionality
+            case STOPWATCH: Stopwatch_ToggleRunning(); break;
             default: break;
         }
-
-        /* Old Stuff
-
-        if (interface_state == SET_TIME) {
-            IncrementTime();
-        } else if (interface_state == COMPASS) {
-            interface_state = CALIBRATION;
-            prev_state = COMPASS;
-        } else if (interface_state == CALIBRATION) {
-            AdjustOffset(0.1);
-        } else if (interface_state == TEMPERATURE) {
-        	interface_state = PRESSURE;
-        	prev_state = TEMPERATURE;
-        } else if (interface_state == TIME) {
-            interface_state = COMPASS;
-
-        }*/
     }
-    else if (GPIO_Pin == GPIO_PIN_8) { // PB8
+    else if (GPIO_Pin == GPIO_PIN_8) {
         if ((uint32_t)(now - last_pb8_ms) < BTN_DEBOUNCE_MS) return;
         last_pb8_ms = now;
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8) != GPIO_PIN_RESET) return;
 
-        // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
         switch (interface_state) {
             case SET_TIME:     NextTimeField(); break;
             case CALIBRATION:  NextCalibrationField(); break;
-            case STOPWATCH:    Stopwatch_Clear(); break; // Clear Stopwatch
+            case STOPWATCH:    Stopwatch_Clear(); break;
             default:
                 interface_state = SET_TIME;
                 EnterSetTimeMode();
                 ui_dirty = true;
             	break;
         }
-
-        /* Old Stuff
-        if (interface_state == SET_TIME) {
-            DecrementTime();
-        } else if (interface_state == CALIBRATION) {
-            AdjustOffset(-0.1);
-        } else if (interface_state == TEMPERATURE) {
-            interface_state = CALIBRATION;
-            prev_state = TEMPERATURE;
-        } else if (interface_state == COMPASS) {
-        	interface_state = INCLINE;
-        	prev_state = COMPASS;
-        	ui_dirty = true;
-        } else if (interface_state == TIME) {
-            interface_state = TEMPERATURE;
-            prev_state = TIME;
-        } */
     }
-    else if (GPIO_Pin == GPIO_PIN_3) { // PB3
+    else if (GPIO_Pin == GPIO_PIN_3) {
         if ((uint32_t)(now - last_pb3_ms) < BTN_DEBOUNCE_MS) return;
         last_pb3_ms = now;
 
         if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) != GPIO_PIN_RESET) return;
 
-        // Trigger Timestamp for User Activity for Sleep Mode Processing
         UpdateLastActivityTime();
 
         switch (interface_state) {
@@ -2155,27 +1986,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
                 ui_dirty = true;
             	break;
         }
-
-        /* Old Stuff
-        switch (interface_state) {
-            case SET_TIME:     NextTimeField(); break;
-            case COMPASS:      interface_state = TIME; break;
-            case TEMPERATURE:  interface_state = TIME; break;
-            case PRESSURE:     interface_state = TIME; break;
-            case INCLINE:
-            	interface_state = COMPASS;
-            	ui_dirty = true;
-            	break;
-            case TIME:
-                interface_state = SET_TIME;
-                EnterSetTimeMode();
-                ui_dirty = true;
-                break;
-            case CALIBRATION:  NextCalibrationField(); break;
-            default: break;
-        } */
     }
-    else if (GPIO_Pin == GPIO_PIN_10) { // PA10
+    else if (GPIO_Pin == GPIO_PIN_10) {
         if ((uint32_t)(now - last_pa10_ms) < BTN_DEBOUNCE_MS) return;
         last_pa10_ms = now;
 
@@ -2193,12 +2005,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
             case STOPWATCH: HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1); HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15); break;
             default: interface_state = TIME; break;
         }
-
-        /* Old stuff
-    	// Toggle the display backlight
-    	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
-    	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-    	*/
     }
 }
 
