@@ -24,6 +24,7 @@ License along with this library.
 #include <stdlib.h>
 #include <stdint.h>
 #include "ST7565.h"
+#include <stdio.h>
 #include <string.h>
 
 #define COL_OFFSET 4
@@ -119,7 +120,7 @@ void  ST7565_drawchar(uint8_t x, uint8_t line, char c)
 static void draw_colon_7x12(uint8_t x, uint8_t y, uint8_t color)
 {
     // 7x12 grid: width 7, height 12
-    // Make two dots, each 2 rows tall and 2 columns wide.
+    // Make two dots, each 2 rows tall and 2 columns wide
     uint8_t cx0 = x + 3;   // centered-ish
     uint8_t cx1 = x + 4;
 
@@ -315,6 +316,47 @@ void ST7565_drawstring_anywhere_8x40(uint8_t x, uint8_t y, const char *s)
     while (*s) {
         ST7565_drawchar_anywhere_8x40(x, y, *s++);
         x += FONT8X40_STEP;
+    }
+}
+
+void ftoa(char *buffer, float value, int decimals)
+{
+    if (decimals < 0) {
+        decimals = 0;
+    }
+
+    if (value < 0) {
+        *buffer++ = '-';
+        value = -value;
+    }
+
+    int scale = 1;
+    for (int decimal_index = 0; decimal_index < decimals; decimal_index++)
+        scale *= 10;
+
+    int integer_part = (int)value;
+    float remainder = value - integer_part;
+    int fractional_part = (int)(remainder * scale + 0.5f);
+
+    if (fractional_part >= scale) {
+        integer_part++;
+        fractional_part -= scale;
+    }
+
+    sprintf(buffer, "%d", integer_part);
+
+    while (*buffer != '\0') buffer++;
+
+    if (decimals > 0) {
+        *buffer++ = '.';
+
+        int pad = scale / 10;
+        while (pad > 1 && fractional_part < pad) {
+            *buffer++ = '0';
+            pad /= 10;
+        }
+
+        sprintf(buffer, "%d", fractional_part);
     }
 }
 

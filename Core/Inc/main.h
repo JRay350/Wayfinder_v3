@@ -38,6 +38,7 @@ extern "C" {
 #include <lps22hh.h>
 #include <stts22h.h>
 
+#include "app_types.h"
 #include "c6dofimu13_hal.h"
 #include "lps22hh_platform.h"
 #include "stts22h_platform.h"
